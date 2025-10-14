@@ -9,6 +9,7 @@
   <!-- Firebase SDKs (Compat para simplicidade) -->
   <script src="https://www.gstatic.com/firebasejs/10.14.0/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.14.0/firebase-database-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.14.0/firebase-auth-compat.js"></script>
   <style>
     .card{transition:transform .15s ease,box-shadow .15s ease}
     .card:hover{transform:translateY(-2px);box-shadow:0 12px 30px rgba(0,0,0,.08)}
@@ -29,12 +30,12 @@
         <p class="text-sm text-slate-500 mt-1">Acesse com seu usuário e senha</p>
       </div>
       <div class="space-y-3">
-        <input id="user" class="w-full rounded-lg border p-3" placeholder="Usuário (master ou visual)"/>
-        <input id="pass" type="password" class="w-full rounded-lg border p-3" placeholder="Senha (123)"/>
+        <input id="user" class="w-full rounded-lg border p-3" placeholder="E-mail (para master) ou 'visual'"/>
+        <input id="pass" type="password" class="w-full rounded-lg border p-3" placeholder="Senha (master = do Firebase / visual = 123)"/>
         <button onclick="login()" class="w-full rounded-lg bg-blue-600 hover:bg-blue-700 text-white font-semibold py-3">Entrar</button>
       </div>
       <div class="text-xs text-slate-400 mt-4">
-        Demos: <b>master/123</b> (admin) • <b>visual/123</b> (somente leitura)
+        Visual: <b>visual / 123</b> • Master: <i>use seu e-mail e senha do Firebase Auth</i>
       </div>
     </div>
   </section>
@@ -227,16 +228,50 @@ const firebaseConfig = {
   messagingSenderId: "1059621768811",
   appId: "1:1059621768811:web:b8c70235f3c17490bbab2e",
   measurementId: "G-2WF5J8CCM8",
-  // databaseURL é necessário para Realtime DB (se não estiver setado no console, adicione aqui)
   databaseURL: "https://painel-otif-default-rtdb.firebaseio.com"
 };
 firebase.initializeApp(firebaseConfig);
 const db = firebase.database();
+const auth = firebase.auth();
 
-/* =============== AUTH DE PERFIL (LOCAL) =============== */
-/* Apenas para definir permissões de UI (master vs visual) */
-const usuarios = { master:{senha:"123",role:"master"}, visual:{senha:"123",role:"visual"} };
-let usuarioAtual = null;
+/* Persistência local (não perde login ao recarregar) */
+auth.setPersistence(firebase.auth.Auth.Persistence.LOCAL);
+
+/* =============== AUTH STATE (define master x visual) =============== */
+auth.onAuthStateChanged(async (user) => {
+  if (user) {
+    try{
+      const snap = await firebase.database().ref(`otif/admins/${user.uid}`).get();
+      const isAdmin = snap.val() === true;
+
+      if (isAdmin) {
+        usuarioAtual = { nome: user.email || 'master', role: 'master' };
+        document.getElementById('btnEditMeta').classList.remove('hidden');
+        document.getElementById('blocoMaster').classList.remove('hidden');
+        document.getElementById('visPanel').classList.remove('hidden');
+        document.getElementById('userName').textContent = `Usuário: ${usuarioAtual.nome} (master)`;
+      } else {
+        usuarioAtual = { nome: user.email || 'visual', role: 'visual' };
+        document.getElementById('btnEditMeta').classList.add('hidden');
+        document.getElementById('blocoMaster').classList.add('hidden');
+        document.getElementById('visPanel').classList.add('hidden');
+        document.getElementById('userName').textContent = `Usuário: ${usuarioAtual.nome} (visual)`;
+      }
+      // Garante dashboard visível quando autenticado
+      document.getElementById('login-screen').classList.add('hidden');
+      document.getElementById('dashboard').classList.remove('hidden');
+    }catch(e){
+      console.error(e);
+    }
+  } else {
+    // Sem sessão -> perfil visual público
+    usuarioAtual = { nome: 'visual', role: 'visual' };
+    document.getElementById('btnEditMeta').classList.add('hidden');
+    document.getElementById('blocoMaster').classList.add('hidden');
+    document.getElementById('visPanel').classList.add('hidden');
+  }
+  if (typeof renderizarTudo === 'function') renderizarTudo();
+});
 
 /* =============== Referências do DB =============== */
 const REF_FORA   = db.ref("otif/foraPrazo");              // Array de objetos
@@ -253,35 +288,38 @@ let visConfig = { pie:true, pareto:true, linha:true, tabela:true };
 let chartPizza=null, chartPareto=null, chartLinha=null;
 
 /* =============== Login / Logout =============== */
-function login(){
-  const u=qs("#user").value.trim(), p=qs("#pass").value.trim();
-  if(usuarios[u] && usuarios[u].senha===p){
-    usuarioAtual={nome:u, role:usuarios[u].role};
+async function login(){
+  const u = qs("#user").value.trim();
+  const p = qs("#pass").value.trim();
+
+  // MASTER: se for e-mail, autentica no Firebase
+  if (u.includes("@")) {
+    try {
+      await auth.signInWithEmailAndPassword(u, p);
+      // onAuthStateChanged ajusta a UI
+    } catch (e) {
+      console.error(e);
+      alert("Falha ao autenticar. Verifique e-mail e senha do master no Firebase Auth.");
+    }
+    return;
+  }
+
+  // VISUAL: leitura pública
+  if (u.toLowerCase() === "visual" && p === "123") {
+    try { await auth.signOut(); } catch {}
+    usuarioAtual = { nome: 'visual', role: 'visual' };
     qs("#login-screen").classList.add("hidden");
     qs("#dashboard").classList.remove("hidden");
-    qs("#userName").textContent=`Usuário: ${u} (${usuarioAtual.role})`;
-
-    const isMaster = usuarioAtual.role==="master";
-    qs("#btnEditMeta").classList.toggle("hidden", !isMaster);
-    qs("#blocoMaster").classList.toggle("hidden", !isMaster);
-    qs("#visPanel").classList.toggle("hidden", !isMaster);
-
-    // Dblclick nos cards para abrir planilhas
-    qs("#cardPrazo").ondblclick = ()=> abrirPlanilha("prazo");
-    qs("#cardFora").ondblclick  = ()=> abrirPlanilha("fora");
-
-    // Carrega visibilidade para preencher checkboxes
-    id("visPie").checked    = !!visConfig.pie;
-    id("visPareto").checked = !!visConfig.pareto;
-    id("visLinha").checked  = !!visConfig.linha;
-    id("visTabela").checked = !!visConfig.tabela;
-
+    qs("#userName").textContent=`Usuário: visual (visual)`;
     renderizarTudo();
-  } else {
-    alert("Usuário ou senha incorretos!");
+    return;
   }
+
+  alert("Use um e-mail de master (Firebase Auth) ou 'visual' com senha 123.");
 }
-function logout(){
+
+async function logout(){
+  try { await auth.signOut(); } catch (e) { console.error(e); }
   usuarioAtual=null;
   qs("#dashboard").classList.add("hidden");
   qs("#login-screen").classList.remove("hidden");
@@ -304,7 +342,6 @@ REF_META.on("value", snap=>{
 REF_VIS.on("value", snap=>{
   const v = snap.val();
   if(v) visConfig = { pie:!!v.pie, pareto:!!v.pareto, linha:!!v.linha, tabela:!!v.tabela };
-  // Atualiza checkboxes se master já logado
   if(usuarioAtual?.role === "master"){
     id("visPie").checked    = visConfig.pie;
     id("visPareto").checked = visConfig.pareto;
@@ -600,7 +637,6 @@ id("csvInput").addEventListener("change", async ev=>{
       if(!obj.cliente||!obj.pedido||!obj.dataEntrega){ pul++; continue; }
       novos.push(obj); ins++;
     }
-    // Mescla com os atuais (se quiser, dá pra de-duplicar por chave)
     atrasos = atrasos.concat(novos);
     await REF_FORA.set(atrasos);
     ev.target.value="";
