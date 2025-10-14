@@ -6,10 +6,12 @@
   <title>Painel OTIF</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-  <!-- Firebase SDKs (Compat para simplicidade) -->
+  <!-- Firebase SDKs (Compat) -->
   <script src="https://www.gstatic.com/firebasejs/10.14.0/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.14.0/firebase-database-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.14.0/firebase-auth-compat.js"></script>
+  <!-- SheetJS para Excel -->
+  <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
   <style>
     .card{transition:transform .15s ease,box-shadow .15s ease}
     .card:hover{transform:translateY(-2px);box-shadow:0 12px 30px rgba(0,0,0,.08)}
@@ -18,7 +20,8 @@
     .btn{padding:.5rem .75rem;border-radius:.5rem;font-weight:600}
     .tbl th,.tbl td{padding:.5rem .5rem;border-bottom:1px solid #e2e8f0;vertical-align:middle}
     .cell-edit[contenteditable="true"]{background:#fffbe6;outline:none}
-    .icon-btn{font-size:.9rem;padding:.25rem .5rem;border-radius:.375rem}
+    .icon-btn{font-size:.9rem;padding:.35rem .6rem;border-radius:.375rem}
+    .th-sticky{position:sticky; top:0; background:#f1f5f9; z-index:1}
   </style>
 </head>
 <body class="min-h-screen bg-slate-50 text-slate-800">
@@ -30,8 +33,8 @@
         <p class="text-sm text-slate-500 mt-1">Acesse com seu usuário e senha</p>
       </div>
       <div class="space-y-3">
-        <input id="user" class="w-full rounded-lg border p-3" placeholder="E-mail (para master) ou 'visual'"/>
-        <input id="pass" type="password" class="w-full rounded-lg border p-3" placeholder="Senha (master = do Firebase / visual = 123)"/>
+        <input id="user" class="w-full rounded-lg border p-3" placeholder="E-mail (master) ou 'visual'"/>
+        <input id="pass" type="password" class="w-full rounded-lg border p-3" placeholder="Senha (master do Firebase / visual = 123)"/>
         <button onclick="login()" class="w-full rounded-lg bg-blue-600 hover:bg-blue-700 text-white font-semibold py-3">Entrar</button>
       </div>
       <div class="text-xs text-slate-400 mt-4">
@@ -42,7 +45,6 @@
 
   <!-- DASHBOARD -->
   <section id="dashboard" class="hidden">
-    <!-- Header -->
     <header class="bg-gradient-to-r from-blue-600 to-indigo-600 text-white">
       <div class="max-w-7xl mx-auto px-6 py-5 flex items-center justify-between">
         <div>
@@ -54,7 +56,6 @@
           <button onclick="logout()" class="text-sm font-semibold bg-white/10 hover:bg-white/20 px-3 py-1 rounded-lg">Sair</button>
         </div>
       </div>
-      <!-- Banner de Meta -->
       <div id="metaBanner" class="hidden text-center py-2 font-semibold"></div>
     </header>
 
@@ -74,7 +75,7 @@
         </div>
       </div>
 
-      <!-- Configurações de Visibilidade (Master) -->
+      <!-- Config Visibilidade (Master) -->
       <div id="visPanel" class="hidden bg-white rounded-2xl shadow p-4">
         <div class="flex items-center justify-between mb-2">
           <h3 class="font-semibold">Configurações de Visibilidade (para perfil Visual)</h3>
@@ -142,7 +143,7 @@
         </div>
       </div>
 
-      <!-- Ações do Master -->
+      <!-- Ações do Master (opcional manter CSV global) -->
       <div id="blocoMaster" class="hidden bg-white rounded-2xl shadow p-4 flex flex-wrap items-center gap-3">
         <span class="font-semibold">Admin:</span>
         <input id="csvInput" type="file" accept=".csv" class="hidden"/>
@@ -152,10 +153,10 @@
         <button onclick="baixarTemplate()" class="btn bg-slate-200 hover:bg-slate-300 text-slate-800">
           Baixar Template CSV
         </button>
-        <span class="text-xs text-slate-500">Aceita vírgula ou ponto-e-vírgula • Datas DD/MM/AAAA ou AAAA-MM-DD</span>
+        <span class="text-xs text-slate-500">CSV separado por vírgula/; • Datas DD/MM/AAAA ou AAAA-MM-DD</span>
       </div>
 
-      <!-- Gráficos (GRID DINÂMICO) -->
+      <!-- Gráficos -->
       <div id="graficoGrid" class="grid gap-6 transition-all duration-300">
         <div id="sectionPie" class="bg-white rounded-2xl shadow p-4">
           <h3 class="font-semibold mb-2">Motivos de Atraso</h3>
@@ -195,21 +196,25 @@
     </main>
   </section>
 
-  <!-- MODAL: planilhazinha (No Prazo / Fora do Prazo) -->
+  <!-- MODAL: planilha (No Prazo / Fora Prazo) -->
   <div id="modalList" class="hidden fixed inset-0 modal-bg z-40">
     <div class="min-h-full grid place-items-center px-4">
       <div class="bg-white w-full max-w-6xl rounded-2xl shadow-2xl p-6">
         <div class="flex items-center justify-between mb-4">
           <h2 id="modalListTitle" class="text-xl font-semibold">Listagem</h2>
-          <div class="flex items-center gap-2">
+          <div class="flex flex-wrap items-center gap-2">
+            <input id="excelInputModal" type="file" accept=".xlsx,.xls,.csv" class="hidden"/>
+            <button id="btnImportModal" class="hidden icon-btn bg-amber-500 text-white">Importar XLSX/CSV</button>
+            <button id="btnDeleteSel" class="hidden icon-btn bg-rose-500 text-white">Excluir selecionados</button>
+            <button id="btnDeleteAll" class="hidden icon-btn bg-rose-700 text-white">Excluir TUDO</button>
             <button id="btnAddRow" class="hidden icon-btn bg-emerald-600 text-white">+ Linha</button>
             <button id="btnSaveSheet" class="hidden icon-btn bg-blue-600 text-white">Salvar</button>
             <button onclick="fecharModalList()" class="icon-btn bg-slate-200 text-slate-800">Fechar</button>
           </div>
         </div>
-        <div class="overflow-x-auto">
+        <div class="overflow-x-auto max-h-[65vh]">
           <table class="w-full text-sm tbl">
-            <thead id="modalHead" class="bg-slate-100 text-left"></thead>
+            <thead id="modalHead" class="bg-slate-100 text-left th-sticky"></thead>
             <tbody id="modalBody" class="bg-white"></tbody>
           </table>
         </div>
@@ -233,126 +238,100 @@ const firebaseConfig = {
 firebase.initializeApp(firebaseConfig);
 const db = firebase.database();
 const auth = firebase.auth();
-
-/* Persistência local (não perde login ao recarregar) */
 auth.setPersistence(firebase.auth.Auth.Persistence.LOCAL);
 
-/* =============== AUTH STATE (define master x visual) =============== */
+/* =============== GLOBAL STATE/REFS =============== */
+const REF_FORA   = db.ref("otif/foraPrazo");
+const REF_PRAZO  = db.ref("otif/noPrazo");
+const REF_META   = db.ref("otif/meta/globalPercent");
+const REF_VIS    = db.ref("otif/config/visibilityForViewer");
+
+let atrasos = [];
+let noPrazo = [];
+let metaValue = 80;
+let visConfig = { pie:true, pareto:true, linha:true, tabela:true };
+let chartPizza=null, chartPareto=null, chartLinha=null;
+let usuarioAtual = { nome:'visual', role:'visual' }; // default
+let modalTipo="fora";
+
+/* =============== AUTH STATE =============== */
 auth.onAuthStateChanged(async (user) => {
   if (user) {
     try{
       const snap = await firebase.database().ref(`otif/admins/${user.uid}`).get();
       const isAdmin = snap.val() === true;
-
       if (isAdmin) {
         usuarioAtual = { nome: user.email || 'master', role: 'master' };
-        document.getElementById('btnEditMeta').classList.remove('hidden');
-        document.getElementById('blocoMaster').classList.remove('hidden');
-        document.getElementById('visPanel').classList.remove('hidden');
-        document.getElementById('userName').textContent = `Usuário: ${usuarioAtual.nome} (master)`;
+        id('btnEditMeta').classList.remove('hidden');
+        id('blocoMaster').classList.remove('hidden');
+        id('visPanel').classList.remove('hidden');
+        id('userName').textContent = `Usuário: ${usuarioAtual.nome} (master)`;
       } else {
         usuarioAtual = { nome: user.email || 'visual', role: 'visual' };
-        document.getElementById('btnEditMeta').classList.add('hidden');
-        document.getElementById('blocoMaster').classList.add('hidden');
-        document.getElementById('visPanel').classList.add('hidden');
-        document.getElementById('userName').textContent = `Usuário: ${usuarioAtual.nome} (visual)`;
+        id('btnEditMeta').classList.add('hidden');
+        id('blocoMaster').classList.add('hidden');
+        id('visPanel').classList.add('hidden');
+        id('userName').textContent = `Usuário: ${usuarioAtual.nome} (visual)`;
       }
-      // Garante dashboard visível quando autenticado
-      document.getElementById('login-screen').classList.add('hidden');
-      document.getElementById('dashboard').classList.remove('hidden');
-    }catch(e){
-      console.error(e);
-    }
+      id('login-screen').classList.add('hidden');
+      id('dashboard').classList.remove('hidden');
+    }catch(e){ console.error(e); }
   } else {
-    // Sem sessão -> perfil visual público
-    usuarioAtual = { nome: 'visual', role: 'visual' };
-    document.getElementById('btnEditMeta').classList.add('hidden');
-    document.getElementById('blocoMaster').classList.add('hidden');
-    document.getElementById('visPanel').classList.add('hidden');
+    usuarioAtual = { nome:'visual', role:'visual' };
+    id('btnEditMeta').classList.add('hidden');
+    id('blocoMaster').classList.add('hidden');
+    id('visPanel').classList.add('hidden');
   }
+  bindCardDblClick();         // 🔧 garante o dblclick SEMPRE ativo
   if (typeof renderizarTudo === 'function') renderizarTudo();
 });
 
-/* =============== Referências do DB =============== */
-const REF_FORA   = db.ref("otif/foraPrazo");              // Array de objetos
-const REF_PRAZO  = db.ref("otif/noPrazo");                // Array de objetos
-const REF_META   = db.ref("otif/meta/globalPercent");     // Number
-const REF_VIS    = db.ref("otif/config/visibilityForViewer"); // {pie,pareto,linha,tabela}
-
-/* =============== Estado local =============== */
-let atrasos = [];   // Fora Prazo
-let noPrazo = [];   // No Prazo
-let metaValue = 80; // Meta %
-let visConfig = { pie:true, pareto:true, linha:true, tabela:true };
-
-let chartPizza=null, chartPareto=null, chartLinha=null;
-
-/* =============== Login / Logout =============== */
+/* =============== LOGIN/LOGOUT =============== */
 async function login(){
   const u = qs("#user").value.trim();
   const p = qs("#pass").value.trim();
 
-  // MASTER: se for e-mail, autentica no Firebase
   if (u.includes("@")) {
     try {
       await auth.signInWithEmailAndPassword(u, p);
-      // onAuthStateChanged ajusta a UI
     } catch (e) {
-      console.error(e);
-      alert("Falha ao autenticar. Verifique e-mail e senha do master no Firebase Auth.");
+      console.error(e); alert("Falha ao autenticar (master). Verifique e-mail/senha.");
     }
     return;
   }
-
-  // VISUAL: leitura pública
-  if (u.toLowerCase() === "visual" && p === "123") {
+  if (u.toLowerCase()==="visual" && p==="123") {
     try { await auth.signOut(); } catch {}
-    usuarioAtual = { nome: 'visual', role: 'visual' };
-    qs("#login-screen").classList.add("hidden");
-    qs("#dashboard").classList.remove("hidden");
-    qs("#userName").textContent=`Usuário: visual (visual)`;
+    usuarioAtual = { nome:'visual', role:'visual' };
+    id('login-screen').classList.add('hidden');
+    id('dashboard').classList.remove('hidden');
+    id('userName').textContent = `Usuário: visual (visual)`;
+    bindCardDblClick();
     renderizarTudo();
     return;
   }
-
-  alert("Use um e-mail de master (Firebase Auth) ou 'visual' com senha 123.");
+  alert("Use e-mail (master) ou 'visual' com senha 123.");
 }
-
 async function logout(){
-  try { await auth.signOut(); } catch (e) { console.error(e); }
+  try { await auth.signOut(); } catch(e){ console.error(e); }
   usuarioAtual=null;
-  qs("#dashboard").classList.add("hidden");
-  qs("#login-screen").classList.remove("hidden");
+  id('dashboard').classList.add('hidden');
+  id('login-screen').classList.remove('hidden');
 }
 
-/* =============== Subscrições Realtime =============== */
-REF_FORA.on("value", snap=>{
-  atrasos = snap.val() || [];
-  renderizarTudo();
-});
-REF_PRAZO.on("value", snap=>{
-  noPrazo = snap.val() || [];
-  renderizarTudo();
-});
-REF_META.on("value", snap=>{
-  const v = parseFloat(snap.val());
-  if(!isNaN(v)) metaValue = v;
-  renderizarTudo();
-});
-REF_VIS.on("value", snap=>{
-  const v = snap.val();
-  if(v) visConfig = { pie:!!v.pie, pareto:!!v.pareto, linha:!!v.linha, tabela:!!v.tabela };
-  if(usuarioAtual?.role === "master"){
-    id("visPie").checked    = visConfig.pie;
-    id("visPareto").checked = visConfig.pareto;
-    id("visLinha").checked  = visConfig.linha;
-    id("visTabela").checked = visConfig.tabela;
+/* =============== SUBSCRIBE DB =============== */
+REF_FORA.on("value", s=>{ atrasos = s.val() || []; renderizarTudo(); });
+REF_PRAZO.on("value", s=>{ noPrazo = s.val() || []; renderizarTudo(); });
+REF_META.on("value", s=>{ const v=parseFloat(s.val()); if(!isNaN(v)) metaValue=v; renderizarTudo(); });
+REF_VIS.on("value", s=>{
+  const v=s.val(); if(v) visConfig={ pie:!!v.pie, pareto:!!v.pareto, linha:!!v.linha, tabela:!!v.tabela };
+  if(usuarioAtual?.role==='master'){
+    id("visPie").checked=visConfig.pie; id("visPareto").checked=visConfig.pareto;
+    id("visLinha").checked=visConfig.linha; id("visTabela").checked=visConfig.tabela;
   }
-  applyVisibilityForViewer();
-  ajustarGridGraficos();
+  applyVisibilityForViewer(); ajustarGridGraficos();
 });
 
-/* =============== Filtros =============== */
+/* =============== FILTERS/RENDER =============== */
 function filtrarDados(){ renderizarTudo(); }
 function presetDia(){ const d=isoToday(); setDates(d,d); renderizarTudo(); }
 function presetSemana(){
@@ -372,7 +351,6 @@ function aplicaPeriodo(lista){
   return lista.filter(r => (r.dataEntrega||"")>=s && (r.dataEntrega||"")<=e);
 }
 
-/* =============== Render Principal =============== */
 function renderizarTudo(){
   const atrasosF=aplicaPeriodo(atrasos), prazoF=aplicaPeriodo(noPrazo);
   const total=atrasosF.length+prazoF.length, fora=atrasosF.length, ok=prazoF.length, nc=0;
@@ -384,7 +362,6 @@ function renderizarTudo(){
   txt("naoClassificados", nc);
   txt("otifPercent", `${otif.toFixed(2)}%`);
   txt("metaPercent", `${metaValue.toFixed(2)}%`);
-
   atualizarStatusMeta(otif, metaValue);
 
   const tbody=id("tabelaDados"); tbody.innerHTML="";
@@ -406,7 +383,7 @@ function renderizarTudo(){
   ajustarGridGraficos();
 }
 
-/* =============== Gráficos =============== */
+/* =============== CHARTS =============== */
 function renderGraficos(data){
   if(chartPizza) chartPizza.destroy();
   if(chartPareto) chartPareto.destroy();
@@ -433,10 +410,9 @@ function renderGraficos(data){
 }
 function countBy(arr, fn){ const m={}; arr.forEach(x=>{const k=fn(x); m[k]=(m[k]||0)+1;}); return m; }
 
-/* =============== Grid Dinâmico dos Gráficos =============== */
+/* =============== GRID AJUSTE =============== */
 function ajustarGridGraficos(){
-  const grid = document.getElementById("graficoGrid");
-  if(!grid) return;
+  const grid = id("graficoGrid");
   const visiveis = ["#sectionPie","#sectionPareto","#sectionLinha"]
     .map(sel => document.querySelector(sel))
     .filter(el => el && el.style.display !== "none");
@@ -449,36 +425,67 @@ function ajustarGridGraficos(){
   visiveis.forEach(v => v.classList.add("h-full"));
 }
 
-/* =============== Planilhas (Editável p/ Master) =============== */
-let modalTipo="fora"; // "fora" | "prazo"
+/* =============== CARDS: garantir dblclick sempre =============== */
+function bindCardDblClick(){
+  const cPrazo = id("cardPrazo");
+  const cFora  = id("cardFora");
+  if(cPrazo){ cPrazo.addEventListener("dblclick", ()=> abrirPlanilha("prazo"), {once:false}); }
+  if(cFora){  cFora .addEventListener("dblclick", ()=> abrirPlanilha("fora"),  {once:false}); }
+}
+document.addEventListener("DOMContentLoaded", bindCardDblClick);
+
+/* =============== MODAL PLANILHA =============== */
 function abrirPlanilha(tipo){
   modalTipo=tipo;
   const isMaster = usuarioAtual?.role==="master";
-  const title= tipo==="fora" ? "Fora do Prazo — editar/alimentar" : "No Prazo — editar/alimentar";
-  txt("modalListTitle", title);
+  txt("modalListTitle", tipo==="fora" ? "Fora do Prazo — editar/alimentar" : "No Prazo — editar/alimentar");
 
-  id("btnAddRow").classList.toggle("hidden", !isMaster);
-  id("btnSaveSheet").classList.toggle("hidden", !isMaster);
+  // Botões visíveis só para master
+  toggle("#btnAddRow", isMaster);
+  toggle("#btnSaveSheet", isMaster);
+  toggle("#btnImportModal", isMaster);
+  toggle("#btnDeleteSel", isMaster);
+  toggle("#btnDeleteAll", isMaster);
 
+  // Cabeçalho com checkbox geral
   const head = (tipo==="fora")
-    ? ["Cliente","Pedido","Produto","Quantidade","Motivo/Obs","Setor","DataCliente","DataEntrega",""]
-    : ["Cliente","Pedido","Produto","Quantidade","DataCliente","DataEntrega",""];
-  id("modalHead").innerHTML = `<tr>${head.map(h=>`<th class="p-2">${h}</th>`).join("")}</tr>`;
+    ? ["", "Cliente","Pedido","Produto","Quantidade","Motivo/Obs","Setor","DataCliente","DataEntrega","Ações"]
+    : ["", "Cliente","Pedido","Produto","Quantidade","DataCliente","DataEntrega","Ações"];
+  const selectAll = `<input id="chkAll" type="checkbox" onchange="toggleSelectAll(this)">`;
+  id("modalHead").innerHTML = `<tr>${
+    head.map((h,i)=>`<th class="p-2 ${i===0?'w-8':''}">${i===0?selectAll:h}</th>`).join("")
+  }</tr>`;
 
+  // Corpo
   const data = (tipo==="fora") ? aplicaPeriodo(atrasos) : aplicaPeriodo(noPrazo);
   const editable = isMaster;
   const body=id("modalBody"); body.innerHTML="";
   data.forEach((r, idx)=> body.insertAdjacentHTML("beforeend", linhaModalHTML(r, idx, tipo, editable)));
 
-  txt("modalHint", isMaster ? "Clique nas células para editar. '+ Linha' adiciona. 'Salvar' confirma as mudanças." : "Visualização somente leitura.");
+  txt("modalHint", isMaster
+    ? "Edite diretamente; use Importar XLSX/CSV; marque linhas para excluir; '+ Linha' adiciona; 'Salvar' grava."
+    : "Visualização somente leitura.");
+
+  // Eventos dos botões do modal
+  id("btnAddRow").onclick = addLinha;
+  id("btnSaveSheet").onclick = salvarPlanilha;
+  id("btnImportModal").onclick = ()=> id("excelInputModal").click();
+  id("btnDeleteAll").onclick = excluirTudo;
+  id("btnDeleteSel").onclick = excluirSelecionados;
+  id("excelInputModal").onchange = importarExcelModal;
+
   id("modalList").classList.remove("hidden");
 }
-function linhaModalHTML(r, idx, tipo, editable){
+
+function linhaModalHTML(r, idxView, tipo, editable){
   const ce=(v,f)=>`<td class="cell-edit" contenteditable="${editable}" data-field="${f}">${v??""}</td>`;
-  const delBtn = usuarioAtual?.role==="master"
-    ? `<button class="icon-btn bg-rose-100 text-rose-700" onclick="excluirLinha(${idx})">Excluir</button>` : "";
+  const delBtn = (usuarioAtual?.role==="master")
+    ? `<button class="icon-btn bg-rose-100 text-rose-700" onclick="excluirLinha(${idxView})">Excluir</button>` : "";
+  const chk = `<input type="checkbox" class="rowchk" data-idx="${idxView}">`;
+
   if(tipo==="fora"){
     return `<tr>
+      <td class="p-2">${chk}</td>
       ${ce(r.cliente,"cliente")}
       ${ce(r.pedido,"pedido")}
       ${ce(r.produto,"produto")}
@@ -487,23 +494,25 @@ function linhaModalHTML(r, idx, tipo, editable){
       ${ce(r.setor,"setor")}
       ${ce(r.dataCliente,"dataCliente")}
       ${ce(r.dataEntrega,"dataEntrega")}
-      <td>${delBtn}</td>
+      <td class="p-2">${delBtn}</td>
     </tr>`;
   } else {
     return `<tr>
+      <td class="p-2">${chk}</td>
       ${ce(r.cliente,"cliente")}
       ${ce(r.pedido,"pedido")}
       ${ce(r.produto,"produto")}
       ${ce(r.quantidade,"quantidade")}
       ${ce(r.dataCliente,"dataCliente")}
       ${ce(r.dataEntrega,"dataEntrega")}
-      <td>${delBtn}</td>
+      <td class="p-2">${delBtn}</td>
     </tr>`;
   }
 }
 function fecharModalList(){ id("modalList").classList.add("hidden"); }
 
-id("btnAddRow").addEventListener("click",async ()=>{
+/* Ações do modal */
+async function addLinha(){
   if(usuarioAtual?.role!=="master") return;
   const novo = (modalTipo==="fora")
     ? {cliente:"",pedido:"",produto:"",quantidade:"",motivo:"",setor:"",dataCliente:"",dataEntrega:""}
@@ -511,8 +520,9 @@ id("btnAddRow").addEventListener("click",async ()=>{
   if(modalTipo==="fora"){ atrasos.push(novo); await REF_FORA.set(atrasos); }
   else { noPrazo.push(novo); await REF_PRAZO.set(noPrazo); }
   abrirPlanilha(modalTipo);
-});
-id("btnSaveSheet").addEventListener("click",async ()=>{
+}
+
+async function salvarPlanilha(){
   if(usuarioAtual?.role!=="master") return;
   const rows=[...document.querySelectorAll("#modalBody tr")];
   const dados = rows.map(tr=>{
@@ -531,7 +541,8 @@ id("btnSaveSheet").addEventListener("click",async ()=>{
   alert("Planilha salva com sucesso.");
   renderizarTudo();
   abrirPlanilha(modalTipo);
-});
+}
+
 async function excluirLinha(idxView){
   if(usuarioAtual?.role!=="master") return;
   const baseF = (modalTipo==="fora") ? aplicaPeriodo(atrasos) : aplicaPeriodo(noPrazo);
@@ -543,38 +554,114 @@ async function excluirLinha(idxView){
   abrirPlanilha(modalTipo); renderizarTudo();
 }
 
-/* =============== Meta & Banner (👍/👎) =============== */
-function atualizarStatusMeta(otif, meta){
-  const banner=id("metaBanner");
-  if(otif>=meta){
-    banner.textContent = `👍 META ALCANÇADA — ${otif.toFixed(2)}% ≥ ${meta.toFixed(2)}%`;
-    banner.className   = "text-center py-2 font-semibold bg-green-100 text-green-700 border-b-2 border-green-400";
-  }else{
-    banner.textContent = `👎 META NÃO ATINGIDA — ${otif.toFixed(2)}% < ${meta.toFixed(2)}%`;
-    banner.className   = "text-center py-2 font-semibold bg-red-100 text-red-700 border-b-2 border-red-400";
-  }
-  banner.classList.remove("hidden");
+async function excluirTudo(){
+  if(usuarioAtual?.role!=="master") return;
+  if(!confirm("Tem certeza que deseja excluir TODOS os registros desta planilha?")) return;
+  if(modalTipo==="fora"){ atrasos=[]; await REF_FORA.set([]); }
+  else { noPrazo=[]; await REF_PRAZO.set([]); }
+  abrirPlanilha(modalTipo); renderizarTudo();
 }
-function atualizarMetaUI(editing){
-  const isMaster = usuarioAtual?.role==="master";
-  id("btnEditMeta").classList.toggle("hidden", !isMaster || editing);
-  id("metaInput").classList.toggle("hidden", !editing);
-  id("btnSaveMeta").classList.toggle("hidden", !editing);
-  id("btnCancelMeta").classList.toggle("hidden", !editing);
-  id("metaPercent").classList.toggle("hidden", editing);
-  if(editing) id("metaInput").value = metaValue.toFixed(2);
-}
-id("btnEditMeta").addEventListener("click",()=> atualizarMetaUI(true));
-id("btnCancelMeta").addEventListener("click",()=> atualizarMetaUI(false));
-id("btnSaveMeta").addEventListener("click",async ()=>{
-  const v=parseFloat(id("metaInput").value);
-  if(isNaN(v)||v<0||v>100){ alert("Informe um valor de 0 a 100."); return; }
-  metaValue=v;
-  await REF_META.set(metaValue);
-  atualizarMetaUI(false); renderizarTudo();
-});
 
-/* =============== Visibilidade para Visual (salva no DB) =============== */
+async function excluirSelecionados(){
+  if(usuarioAtual?.role!=="master") return;
+  const chks=[...document.querySelectorAll(".rowchk:checked")];
+  if(chks.length===0){ alert("Selecione ao menos uma linha."); return; }
+  const base = (modalTipo==="fora") ? atrasos : noPrazo;
+  const baseF = (modalTipo==="fora") ? aplicaPeriodo(atrasos) : aplicaPeriodo(noPrazo);
+
+  // Remove por match de objeto (mesma técnica do excluirLinha)
+  chks.forEach(chk=>{
+    const idxView=parseInt(chk.getAttribute("data-idx"));
+    const alvo = baseF[idxView];
+    const i = base.findIndex(x=> JSON.stringify(x)===JSON.stringify(alvo));
+    if(i>=0) base.splice(i,1);
+  });
+  if(modalTipo==="fora") await REF_FORA.set(atrasos); else await REF_PRAZO.set(noPrazo);
+  abrirPlanilha(modalTipo); renderizarTudo();
+}
+
+function toggleSelectAll(master){
+  document.querySelectorAll(".rowchk").forEach(c=> c.checked = master.checked);
+}
+
+/* =============== IMPORTAR NO MODAL (XLSX/CSV) =============== */
+async function importarExcelModal(ev){
+  if(usuarioAtual?.role!=="master") return;
+  const file = ev.target.files?.[0]; if(!file) return;
+  try{
+    const ext = (file.name.split(".").pop()||"").toLowerCase();
+    let linhas = [];
+    if(ext==="xlsx" || ext==="xls"){
+      const data = await file.arrayBuffer();
+      const wb = XLSX.read(data);
+      const ws = wb.Sheets[wb.SheetNames[0]];
+      linhas = XLSX.utils.sheet_to_json(ws, {header:1, blankrows:false});
+    } else if(ext==="csv"){
+      const text = await file.text();
+      linhas = parseCSV(text);
+    } else {
+      alert("Formato não suportado. Use .xlsx, .xls ou .csv");
+      ev.target.value=""; return;
+    }
+    if(!linhas || !linhas.length){ alert("Arquivo vazio."); ev.target.value=""; return; }
+
+    const header = linhas[0].map(normalizeHeader);
+    const idxCommon = {
+      cliente: header.indexOf("cliente"),
+      pedido: header.indexOf("pedido"),
+      produto: header.indexOf("produto"),
+      quantidade: header.indexOf("quantidade"),
+      datacliente: header.indexOf("datacliente"),
+      dataentrega: header.indexOf("dataentrega")
+    };
+    const idxExtras = {
+      motivo: (()=>{const i1=header.indexOf("motivo"), i2=header.indexOf("motivoobs"); return i1>=0?i1:(i2>=0?i2:-1);})(),
+      setor: header.indexOf("setor")
+    };
+
+    // valida colunas mínimas conforme tipo
+    const faltantesPrazo = [idxCommon.cliente,idxCommon.pedido,idxCommon.produto,idxCommon.quantidade,idxCommon.datacliente,idxCommon.dataentrega].some(v=>v===-1);
+    const faltantesFora  = [idxCommon.cliente,idxCommon.pedido,idxCommon.produto,idxCommon.quantidade,idxExtras.setor,idxCommon.dataentrega].some(v=>v===-1);
+
+    if( (modalTipo==="prazo" && faltantesPrazo) || (modalTipo==="fora" && faltantesFora) ){
+      alert("Cabeçalho esperado:\n\nNo Prazo: cliente, pedido, produto, quantidade, datacliente, dataentrega\nFora Prazo: cliente, pedido, produto, quantidade, motivo/obs, setor, datacliente, dataentrega");
+      ev.target.value=""; return;
+    }
+
+    const novos=[];
+    for(let i=1;i<linhas.length;i++){
+      const r=linhas[i]; if(!r || !r.length) continue;
+      const base = {
+        cliente: (r[idxCommon.cliente]??"").toString().trim(),
+        pedido:  (r[idxCommon.pedido]??"").toString().trim(),
+        produto: (r[idxCommon.produto]??"").toString().trim(),
+        quantidade: (r[idxCommon.quantidade]??"").toString().trim(),
+        dataCliente: normalizeDateToISO((r[idxCommon.datacliente]??"").toString().trim()),
+        dataEntrega: normalizeDateToISO((r[idxCommon.dataentrega]??"").toString().trim())
+      };
+      if(modalTipo==="fora"){
+        base.motivo = (idxExtras.motivo>=0 ? (r[idxExtras.motivo]??"") : "").toString().trim();
+        base.setor  = (r[idxExtras.setor]??"").toString().trim();
+        if(!base.cliente || !base.pedido || !base.dataEntrega) continue;
+      } else {
+        if(!base.cliente || !base.pedido || !base.dataEntrega) continue;
+      }
+      novos.push(base);
+    }
+
+    if(modalTipo==="fora"){ atrasos = atrasos.concat(novos); await REF_FORA.set(atrasos); }
+    else { noPrazo = noPrazo.concat(novos); await REF_PRAZO.set(noPrazo); }
+
+    ev.target.value="";
+    alert(`Importação concluída: ${novos.length} linha(s) adicionada(s).`);
+    abrirPlanilha(modalTipo); renderizarTudo();
+  }catch(e){
+    console.error(e); alert("Falha ao importar arquivo.");
+    ev.target.value="";
+  }
+}
+
+/* =============== VISIBILIDADE (viewer) =============== */
 function applyVisibilityForViewer(){
   if(usuarioAtual?.role!=="visual"){
     show("#sectionPie", true); show("#sectionPareto", true); show("#sectionLinha", true); show("#sectionTabela", true);
@@ -598,7 +685,7 @@ id("visSaveBtn").addEventListener("click", async ()=>{
   ajustarGridGraficos();
 });
 
-/* =============== Importação CSV (Fora Prazo) =============== */
+/* =============== CSV global (fora prazo) legado) =============== */
 id("csvInput").addEventListener("change", async ev=>{
   if(usuarioAtual?.role!=="master"){ ev.target.value=""; return; }
   const file=ev.target.files?.[0]; if(!file) return;
@@ -617,10 +704,9 @@ id("csvInput").addEventListener("change", async ev=>{
       dataentrega:header.indexOf("dataentrega")
     };
     if([idx.cliente,idx.pedido,idx.produto,idx.quantidade,idx.setor,idx.dataentrega].some(v=>v===-1)){
-      alert("Cabeçalho esperado (case-insensitive): cliente,pedido,produto,quantidade,motivo/obs,setor,datacliente,dataentrega");
+      alert("Cabeçalho esperado: cliente,pedido,produto,quantidade,motivo/obs,setor,datacliente,dataentrega");
       return;
     }
-    let ins=0,pul=0;
     const novos=[];
     for(let i=1;i<rows.length;i++){
       const r=rows[i]; if(!r||!r.length) continue;
@@ -634,13 +720,12 @@ id("csvInput").addEventListener("change", async ev=>{
         dataCliente: normalizeDateToISO((r[idx.datacliente]??"").trim()),
         dataEntrega: normalizeDateToISO((r[idx.dataentrega]??"").trim())
       };
-      if(!obj.cliente||!obj.pedido||!obj.dataEntrega){ pul++; continue; }
-      novos.push(obj); ins++;
+      if(!obj.cliente||!obj.pedido||!obj.dataEntrega) continue;
+      novos.push(obj);
     }
-    atrasos = atrasos.concat(novos);
-    await REF_FORA.set(atrasos);
+    atrasos = atrasos.concat(novos); await REF_FORA.set(atrasos);
     ev.target.value="";
-    alert(`Importação concluída.\nInseridos: ${ins}\nPulados: ${pul}`);
+    alert(`Importação concluída: ${novos.length} inseridos.`);
     renderizarTudo();
   }catch(e){ console.error(e); alert("Falha ao ler o CSV."); ev.target.value=""; }
 });
@@ -648,6 +733,22 @@ function baixarTemplate(){
   const content="cliente,pedido,produto,quantidade,motivo,setor,datacliente,dataentrega\nZION SIGNAL,10311/1,81100010,10,Matéria-prima solicitada diferente,MegaWhip,2025-09-29,2025-10-01\n";
   const blob=new Blob([content],{type:"text/csv;charset=utf-8;"}); const url=URL.createObjectURL(blob);
   const a=document.createElement("a"); a.href=url; a.download="otif_foraprazo_template.csv"; a.click(); URL.revokeObjectURL(url);
+}
+
+/* =============== HELPERS =============== */
+function qs(s){return document.querySelector(s)}
+function id(s){return document.getElementById(s)}
+function txt(el,val){ id(el).textContent=val }
+function show(sel,flag){ const el=qs(sel); if(el) el.style.display = flag ? "" : "none"; }
+function toggle(sel,flag){ const el=qs(sel); if(!el) return; el.classList.toggle("hidden", !flag); }
+function isoToday(){ return new Date().toISOString().slice(0,10); }
+function toISO(d){ const z=new Date(d); return z.toISOString().slice(0,10); }
+function normalizeDateToISO(v){
+  v=(v||"").trim();
+  if(/^\d{2}\/\d{2}\/\d{4}$/.test(v)){ const [d,m,a]=v.split("/"); return `${a}-${m}-${d}`; }
+  if(/^\d{4}-\d{2}-\d{2}$/.test(v)) return v;
+  const dt=new Date(v); if(!isNaN(dt.getTime())) return dt.toISOString().slice(0,10);
+  return "";
 }
 function parseCSV(text){
   const hasSemicolon=text.indexOf(";")!==-1; const delim=hasSemicolon?";":",";
@@ -669,20 +770,6 @@ function normalizeHeader(h){
     .replace(/\s+/g,"").replace(/ç/g,"c")
     .replace(/[áàâã]/g,"a").replace(/[éèê]/g,"e").replace(/[íìî]/g,"i")
     .replace(/[óòôõ]/g,"o").replace(/[úùû]/g,"u").replace(/\//g,"");
-}
-
-/* =============== Helpers =============== */
-function qs(s){return document.querySelector(s)}; function id(s){return document.getElementById(s)}
-function txt(el,val){ id(el).textContent=val }
-function show(sel,flag){ const el=qs(sel); if(el) el.style.display = flag ? "" : "none"; }
-function isoToday(){ return new Date().toISOString().slice(0,10); }
-function toISO(d){ const z=new Date(d); return z.toISOString().slice(0,10); }
-function normalizeDateToISO(v){
-  v=(v||"").trim();
-  if(/^\d{2}\/\d{2}\/\d{4}$/.test(v)){ const [d,m,a]=v.split("/"); return `${a}-${m}-${d}`; }
-  if(/^\d{4}-\d{2}-\d{2}$/.test(v)) return v;
-  const dt=new Date(v); if(!isNaN(dt.getTime())) return dt.toISOString().slice(0,10);
-  return "";
 }
 </script>
 </body>
