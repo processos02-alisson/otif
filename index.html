@@ -15,13 +15,18 @@
   <style>
     .card{transition:transform .15s ease,box-shadow .15s ease}
     .card:hover{transform:translateY(-2px);box-shadow:0 12px 30px rgba(0,0,0,.08)}
-    .chip{font-size:.75rem;padding:.25rem .5rem;border-radius:9999px;background:#f1f5f9;color:#475569}
+    .chip{font-size:.75rem;padding:.5rem .75rem;border-radius:9999px;background:#f1f5f9;color:#475569}
     .modal-bg{background:rgba(0,0,0,.45)}
     .btn{padding:.5rem .75rem;border-radius:.5rem;font-weight:600}
     .tbl th,.tbl td{padding:.5rem .5rem;border-bottom:1px solid #e2e8f0;vertical-align:middle}
     .cell-edit[contenteditable="true"]{background:#fffbe6;outline:none}
     .icon-btn{font-size:.9rem;padding:.35rem .6rem;border-radius:.375rem}
     .th-sticky{position:sticky; top:0; background:#f1f5f9; z-index:1}
+    /* Alvos maiores no mobile */
+    @media (max-width:640px){
+      .icon-btn,.btn{padding:.6rem .8rem}
+      .card{padding:1rem}
+    }
   </style>
 </head>
 <body class="min-h-screen bg-slate-50 text-slate-800">
@@ -33,13 +38,11 @@
         <p class="text-sm text-slate-500 mt-1">Acesse com seu usuário e senha</p>
       </div>
       <div class="space-y-3">
-        <input id="user" class="w-full rounded-lg border p-3" placeholder="E-mail (master) ou 'visual'"/>
-        <input id="pass" type="password" class="w-full rounded-lg border p-3" placeholder="Senha (master do Firebase / visual = 123)"/>
+        <input id="user" class="w-full rounded-lg border p-3" placeholder="Usuário"/>
+        <input id="pass" type="password" class="w-full rounded-lg border p-3" placeholder="Senha"/>
         <button onclick="login()" class="w-full rounded-lg bg-blue-600 hover:bg-blue-700 text-white font-semibold py-3">Entrar</button>
       </div>
-      <div class="text-xs text-slate-400 mt-4">
-        Visual: <b>visual / 123</b> • Master: <i>use seu e-mail e senha do Firebase Auth</i>
-      </div>
+      <!-- (Observação: texto de credenciais removido conforme solicitado) -->
     </div>
   </section>
 
@@ -99,20 +102,20 @@
           <div class="mt-2 text-2xl font-bold" id="totalPedidos">0</div>
         </div>
 
-        <div id="cardPrazo" class="card bg-emerald-50 rounded-2xl shadow p-4 cursor-pointer" title="Duplo clique para listar/editar (master)">
+        <div id="cardPrazo" class="card bg-emerald-50 rounded-2xl shadow p-4 cursor-pointer" title="Duplo clique (desktop) ou toque longo (mobile)">
           <div class="flex justify-between">
             <span class="text-emerald-700">No Prazo</span><span>✅</span>
           </div>
           <div class="mt-2 text-2xl font-bold text-emerald-800" id="entreguesPrazo">0</div>
-          <p class="text-xs text-emerald-700/70 mt-1">Duplo clique para planilha</p>
+          <p class="text-xs text-emerald-700/70 mt-1">Abrir planilha</p>
         </div>
 
-        <div id="cardFora" class="card bg-rose-50 rounded-2xl shadow p-4 cursor-pointer" title="Duplo clique para listar/editar (master)">
+        <div id="cardFora" class="card bg-rose-50 rounded-2xl shadow p-4 cursor-pointer" title="Duplo clique (desktop) ou toque longo (mobile)">
           <div class="flex justify-between">
             <span class="text-rose-700">Fora do Prazo</span><span>⛔</span>
           </div>
           <div class="mt-2 text-2xl font-bold text-rose-800" id="foraPrazo">0</div>
-          <p class="text-xs text-rose-700/70 mt-1">Duplo clique para planilha</p>
+          <p class="text-xs text-rose-700/70 mt-1">Abrir planilha</p>
         </div>
 
         <div class="card bg-amber-50 rounded-2xl shadow p-4">
@@ -209,7 +212,7 @@
             <button id="btnDeleteAll" class="hidden icon-btn bg-rose-700 text-white">Excluir TUDO</button>
             <button id="btnAddRow" class="hidden icon-btn bg-emerald-600 text-white">+ Linha</button>
             <button id="btnSaveSheet" class="hidden icon-btn bg-blue-600 text-white">Salvar</button>
-            <button onclick="fecharModalList()" class="icon-btn bg-slate-2 00 text-slate-800">Fechar</button>
+            <button onclick="fecharModalList()" class="icon-btn bg-slate-200 text-slate-800">Fechar</button>
           </div>
         </div>
         <div class="overflow-x-auto max-h-[65vh]">
@@ -282,7 +285,7 @@ auth.onAuthStateChanged(async (user) => {
     id('blocoMaster').classList.add('hidden');
     id('visPanel').classList.add('hidden');
   }
-  bindCardDblClick();         // dblclick cards
+  bindCardOpeners();          // dblclick + toque longo
   bindMetaButtons();          // edição de meta
   if (typeof renderizarTudo === 'function') renderizarTudo();
 });
@@ -292,6 +295,7 @@ async function login(){
   const u = qs("#user").value.trim();
   const p = qs("#pass").value.trim();
 
+  // MASTER: e-mail/senha via Firebase Auth (inalterado)
   if (u.includes("@")) {
     try {
       await auth.signInWithEmailAndPassword(u, p);
@@ -300,18 +304,20 @@ async function login(){
     }
     return;
   }
-  if (u.toLowerCase()==="visual" && p==="123") {
+
+  // VISUAL fixo (pedido): usuario / mega0tif
+  if (u.toLowerCase()==="usuario" && p==="mega0tif") {
     try { await auth.signOut(); } catch {}
-    usuarioAtual = { nome:'visual', role:'visual' };
+    usuarioAtual = { nome:'usuario', role:'visual' };
     id('login-screen').classList.add('hidden');
     id('dashboard').classList.remove('hidden');
-    id('userName').textContent = `Usuário: visual (visual)`;
-    bindCardDblClick();
+    id('userName').textContent = `Usuário: ${usuarioAtual.nome} (visual)`;
+    bindCardOpeners();
     bindMetaButtons();
     renderizarTudo();
     return;
   }
-  alert("Use e-mail (master) ou 'visual' com senha 123.");
+  alert("Credenciais inválidas.");
 }
 async function logout(){
   try { await auth.signOut(); } catch(e){ console.error(e); }
@@ -469,14 +475,19 @@ function ajustarGridGraficos(){
   visiveis.forEach(v => v.classList.add("h-full"));
 }
 
-/* =============== CARDS: garantir dblclick sempre =============== */
-function bindCardDblClick(){
+/* =============== CARDS: dblclick + toque longo (MOBILE) =============== */
+function bindCardOpeners(){
   const cPrazo = id("cardPrazo");
   const cFora  = id("cardFora");
-  if(cPrazo){ cPrazo.addEventListener("dblclick", ()=> abrirPlanilha("prazo"), {once:false}); }
-  if(cFora){  cFora .addEventListener("dblclick", ()=> abrirPlanilha("fora"),  {once:false}); }
+  if(cPrazo){
+    cPrazo.addEventListener("dblclick", ()=> abrirPlanilha("prazo"), {once:false});
+    enableLongPress(cPrazo, ()=> abrirPlanilha("prazo"), 600);
+  }
+  if(cFora){
+    cFora.addEventListener("dblclick", ()=> abrirPlanilha("fora"),  {once:false});
+    enableLongPress(cFora, ()=> abrirPlanilha("fora"), 600);
+  }
 }
-document.addEventListener("DOMContentLoaded", bindCardDblClick);
 
 /* =============== MODAL PLANILHA =============== */
 function abrirPlanilha(tipo){
@@ -507,7 +518,7 @@ function abrirPlanilha(tipo){
   data.forEach((r, idx)=> body.insertAdjacentHTML("beforeend", linhaModalHTML(r, idx, tipo, editable)));
 
   txt("modalHint", isMaster
-    ? "Cole colunas inteiras do Excel/Sheets: clique na célula de início na coluna desejada e dê Ctrl+V. Linhas são criadas automaticamente. Depois clique em Salvar."
+    ? "Cole colunas inteiras do Excel/Sheets: selecione a célula inicial e cole. Linhas são criadas automaticamente. Depois clique em Salvar."
     : "Visualização somente leitura.");
 
   // Eventos dos botões do modal
@@ -879,6 +890,14 @@ function normalizeHeader(h){
     .replace(/\s+/g,"").replace(/ç/g,"c")
     .replace(/[áàâã]/g,"a").replace(/[éèê]/g,"e").replace(/[íìî]/g,"i")
     .replace(/[óòôõ]/g,"o").replace(/[úùû]/g,"u").replace(/\//g,"");
+}
+
+/* Toque longo (mobile) */
+function enableLongPress(el, cb, ms=600){
+  let t=null, moved=false;
+  el.addEventListener('touchstart', ()=>{ moved=false; t=setTimeout(()=>{ if(!moved){ cb(); } }, ms); }, {passive:true});
+  el.addEventListener('touchmove',  ()=>{ moved=true; if(t){ clearTimeout(t); } }, {passive:true});
+  el.addEventListener('touchend',   ()=>{ if(t){ clearTimeout(t); } }, {passive:true});
 }
 </script>
 </body>
