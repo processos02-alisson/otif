@@ -283,6 +283,7 @@ auth.onAuthStateChanged(async (user) => {
     id('visPanel').classList.add('hidden');
   }
   bindCardDblClick();         // 🔧 garante o dblclick SEMPRE ativo
+  bindMetaButtons();          // 🔧 handlers de edição de meta
   if (typeof renderizarTudo === 'function') renderizarTudo();
 });
 
@@ -306,6 +307,7 @@ async function login(){
     id('dashboard').classList.remove('hidden');
     id('userName').textContent = `Usuário: visual (visual)`;
     bindCardDblClick();
+    bindMetaButtons();
     renderizarTudo();
     return;
   }
@@ -381,6 +383,48 @@ function renderizarTudo(){
   renderGraficos(atrasosF);
   applyVisibilityForViewer();
   ajustarGridGraficos();
+}
+
+/* =============== BANNER META (👍/👎) =============== */
+function atualizarStatusMeta(otif, meta){
+  const banner = id("metaBanner");
+  const bateu = otif >= meta;
+  const emoji = bateu ? "👍" : "👎";
+  banner.textContent = `${emoji} OTIF ${otif.toFixed(2)}% — Meta ${meta.toFixed(2)}%`;
+  banner.classList.remove("hidden");
+  banner.className = "text-center py-2 font-semibold " + (bateu ? "bg-emerald-50 text-emerald-700" : "bg-rose-50 text-rose-700");
+}
+
+/* =============== EDIÇÃO DE META (MASTER) =============== */
+function bindMetaButtons(){
+  const edit = id("btnEditMeta"), save=id("btnSaveMeta"), cancel=id("btnCancelMeta");
+  if(!edit || !save || !cancel) return;
+
+  edit.onclick = ()=>{
+    if(usuarioAtual?.role!=="master") return;
+    id("metaInput").value = metaValue.toFixed(2);
+    id("metaPercent").classList.add("hidden");
+    id("metaInput").classList.remove("hidden");
+    save.classList.remove("hidden");
+    cancel.classList.remove("hidden");
+    edit.classList.add("hidden");
+  };
+  cancel.onclick = ()=>{
+    id("metaPercent").classList.remove("hidden");
+    id("metaInput").classList.add("hidden");
+    save.classList.add("hidden");
+    cancel.classList.add("hidden");
+    if(usuarioAtual?.role==="master") id("btnEditMeta").classList.remove("hidden");
+  };
+  save.onclick = async ()=>{
+    if(usuarioAtual?.role!=="master") return;
+    const v = parseFloat(id("metaInput").value);
+    if(isNaN(v) || v<0 || v>100){ alert("Informe uma meta entre 0 e 100."); return; }
+    metaValue = v;
+    await REF_META.set(v);
+    id("metaPercent").textContent = `${v.toFixed(2)}%`;
+    cancel.onclick(); // volta para o modo de visualização
+  };
 }
 
 /* =============== CHARTS =============== */
@@ -462,8 +506,9 @@ function abrirPlanilha(tipo){
   const body=id("modalBody"); body.innerHTML="";
   data.forEach((r, idx)=> body.insertAdjacentHTML("beforeend", linhaModalHTML(r, idx, tipo, editable)));
 
+  // Dica de colagem
   txt("modalHint", isMaster
-    ? "Edite diretamente; use Importar XLSX/CSV; marque linhas para excluir; '+ Linha' adiciona; 'Salvar' grava."
+    ? "Dica: você pode COLAR (Ctrl+V) linhas copiadas do Excel/Sheets diretamente aqui. Aceita TSV/CSV, com ou sem cabeçalho. Depois clique em Salvar."
     : "Visualização somente leitura.");
 
   // Eventos dos botões do modal
@@ -473,6 +518,9 @@ function abrirPlanilha(tipo){
   id("btnDeleteAll").onclick = excluirTudo;
   id("btnDeleteSel").onclick = excluirSelecionados;
   id("excelInputModal").onchange = importarExcelModal;
+
+  // Handler de COLAR dentro da planilha (somente master)
+  body.onpaste = (e)=> handlePasteIntoSheet(e);
 
   id("modalList").classList.remove("hidden");
 }
@@ -569,7 +617,6 @@ async function excluirSelecionados(){
   const base = (modalTipo==="fora") ? atrasos : noPrazo;
   const baseF = (modalTipo==="fora") ? aplicaPeriodo(atrasos) : aplicaPeriodo(noPrazo);
 
-  // Remove por match de objeto (mesma técnica do excluirLinha)
   chks.forEach(chk=>{
     const idxView=parseInt(chk.getAttribute("data-idx"));
     const alvo = baseF[idxView];
@@ -582,6 +629,126 @@ async function excluirSelecionados(){
 
 function toggleSelectAll(master){
   document.querySelectorAll(".rowchk").forEach(c=> c.checked = master.checked);
+}
+
+/* =============== COLAR DIRETO NO MODAL (Excel/Sheets) =============== */
+function handlePasteIntoSheet(e){
+  if(usuarioAtual?.role!=="master") return;
+  const body = id("modalBody");
+  const activeInsideSheet = document.activeElement && body.contains(document.activeElement);
+  // Mesmo se não estiver focado em uma célula, tratamos a colagem
+  const text = (e.clipboardData || window.clipboardData)?.getData("text");
+  if(!text) return;
+
+  e.preventDefault();
+
+  // Tenta detectar TSV primeiro (Excel/Sheets), depois CSV
+  let rows = text.split(/\r?\n/).filter(l=>l.trim().length>0).map(l=>{
+    // prioridade tab; senão vírgula; senão ponto e vírgula
+    if(l.includes("\t")) return l.split("\t").map(x=>x.trim());
+    if(l.includes(",")) return splitCSVLine(l, ",");
+    if(l.includes(";")) return splitCSVLine(l, ";");
+    return [l.trim()];
+  });
+  if(rows.length===0) return;
+
+  // Se a primeira linha for cabeçalho, mapeia por nomes
+  const headRaw = rows[0];
+  const headNorm = headRaw.map(normalizeHeader);
+  const isHeaderLikely = headNorm.some(h=>["cliente","pedido","produto","quantidade","motivo","motivoobs","setor","datacliente","dataentrega"].includes(h));
+
+  const buildObj = (arr)=>{
+    if(modalTipo==="fora"){
+      if(isHeaderLikely){
+        const idx = {
+          cliente: headNorm.indexOf("cliente"),
+          pedido: headNorm.indexOf("pedido"),
+          produto: headNorm.indexOf("produto"),
+          quantidade: headNorm.indexOf("quantidade"),
+          motivo: (()=>{
+            const i1=headNorm.indexOf("motivo"), i2=headNorm.indexOf("motivoobs");
+            return i1>=0?i1:(i2>=0?i2:-1);
+          })(),
+          setor: headNorm.indexOf("setor"),
+          datacliente: headNorm.indexOf("datacliente"),
+          dataentrega: headNorm.indexOf("dataentrega")
+        };
+        return (r)=>({
+          cliente: (r[idx.cliente]??"").toString().trim(),
+          pedido: (r[idx.pedido]??"").toString().trim(),
+          produto: (r[idx.produto]??"").toString().trim(),
+          quantidade: (r[idx.quantidade]??"").toString().trim(),
+          motivo: idx.motivo>=0 ? (r[idx.motivo]??"").toString().trim() : "",
+          setor: (r[idx.setor]??"").toString().trim(),
+          dataCliente: normalizeDateToISO((r[idx.datacliente]??"").toString().trim()),
+          dataEntrega: normalizeDateToISO((r[idx.dataentrega]??"").toString().trim())
+        });
+      } else {
+        // Ordem esperada sem cabeçalho: cliente,pedido,produto,quantidade,motivo,setor,datacliente,dataentrega
+        return (r)=>({
+          cliente:(r[0]??"").toString().trim(),
+          pedido:(r[1]??"").toString().trim(),
+          produto:(r[2]??"").toString().trim(),
+          quantidade:(r[3]??"").toString().trim(),
+          motivo:(r[4]??"").toString().trim(),
+          setor:(r[5]??"").toString().trim(),
+          dataCliente: normalizeDateToISO((r[6]??"").toString().trim()),
+          dataEntrega: normalizeDateToISO((r[7]??"").toString().trim())
+        });
+      }
+    } else {
+      // noPrazo
+      if(isHeaderLikely){
+        const idx = {
+          cliente: headNorm.indexOf("cliente"),
+          pedido: headNorm.indexOf("pedido"),
+          produto: headNorm.indexOf("produto"),
+          quantidade: headNorm.indexOf("quantidade"),
+          datacliente: headNorm.indexOf("datacliente"),
+          dataentrega: headNorm.indexOf("dataentrega")
+        };
+        return (r)=>({
+          cliente: (r[idx.cliente]??"").toString().trim(),
+          pedido: (r[idx.pedido]??"").toString().trim(),
+          produto: (r[idx.produto]??"").toString().trim(),
+          quantidade: (r[idx.quantidade]??"").toString().trim(),
+          dataCliente: normalizeDateToISO((r[idx.datacliente]??"").toString().trim()),
+          dataEntrega: normalizeDateToISO((r[idx.dataentrega]??"").toString().trim())
+        });
+      } else {
+        // Ordem esperada sem cabeçalho: cliente,pedido,produto,quantidade,datacliente,dataentrega
+        return (r)=>({
+          cliente:(r[0]??"").toString().trim(),
+          pedido:(r[1]??"").toString().trim(),
+          produto:(r[2]??"").toString().trim(),
+          quantidade:(r[3]??"").toString().trim(),
+          dataCliente: normalizeDateToISO((r[4]??"").toString().trim()),
+          dataEntrega: normalizeDateToISO((r[5]??"").toString().trim())
+        });
+      }
+    }
+  };
+
+  const mapRow = buildObj(rows[0]);
+  // Se tem cabeçalho, pula a primeira linha
+  const startIdx = isHeaderLikely ? 1 : 0;
+
+  const novos=[];
+  for(let i=startIdx;i<rows.length;i++){
+    const r = rows[i]; if(!r || r.length===0) continue;
+    const obj = mapRow(r);
+    if(obj && obj.cliente && obj.pedido && obj.dataEntrega){
+      novos.push(obj);
+    }
+  }
+
+  if(novos.length===0){ alert("Nada para adicionar a partir da colagem."); return; }
+
+  if(modalTipo==="fora"){ atrasos = atrasos.concat(novos); REF_FORA.set(atrasos); }
+  else { noPrazo = noPrazo.concat(novos); REF_PRAZO.set(noPrazo); }
+
+  alert(`Colagem concluída: ${novos.length} linha(s) adicionada(s). Clique em Salvar para fixar as edições atuais.`);
+  abrirPlanilha(modalTipo);
 }
 
 /* =============== IMPORTAR NO MODAL (XLSX/CSV) =============== */
@@ -619,7 +786,6 @@ async function importarExcelModal(ev){
       setor: header.indexOf("setor")
     };
 
-    // valida colunas mínimas conforme tipo
     const faltantesPrazo = [idxCommon.cliente,idxCommon.pedido,idxCommon.produto,idxCommon.quantidade,idxCommon.datacliente,idxCommon.dataentrega].some(v=>v===-1);
     const faltantesFora  = [idxCommon.cliente,idxCommon.pedido,idxCommon.produto,idxCommon.quantidade,idxExtras.setor,idxCommon.dataentrega].some(v=>v===-1);
 
