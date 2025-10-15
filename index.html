@@ -209,7 +209,7 @@
             <button id="btnDeleteAll" class="hidden icon-btn bg-rose-700 text-white">Excluir TUDO</button>
             <button id="btnAddRow" class="hidden icon-btn bg-emerald-600 text-white">+ Linha</button>
             <button id="btnSaveSheet" class="hidden icon-btn bg-blue-600 text-white">Salvar</button>
-            <button onclick="fecharModalList()" class="icon-btn bg-slate-200 text-slate-800">Fechar</button>
+            <button onclick="fecharModalList()" class="icon-btn bg-slate-2 00 text-slate-800">Fechar</button>
           </div>
         </div>
         <div class="overflow-x-auto max-h-[65vh]">
@@ -282,8 +282,8 @@ auth.onAuthStateChanged(async (user) => {
     id('blocoMaster').classList.add('hidden');
     id('visPanel').classList.add('hidden');
   }
-  bindCardDblClick();         // 🔧 garante o dblclick SEMPRE ativo
-  bindMetaButtons();          // 🔧 handlers de edição de meta
+  bindCardDblClick();         // dblclick cards
+  bindMetaButtons();          // edição de meta
   if (typeof renderizarTudo === 'function') renderizarTudo();
 });
 
@@ -506,9 +506,8 @@ function abrirPlanilha(tipo){
   const body=id("modalBody"); body.innerHTML="";
   data.forEach((r, idx)=> body.insertAdjacentHTML("beforeend", linhaModalHTML(r, idx, tipo, editable)));
 
-  // Dica de colagem
   txt("modalHint", isMaster
-    ? "Dica: você pode COLAR (Ctrl+V) linhas copiadas do Excel/Sheets diretamente aqui. Aceita TSV/CSV, com ou sem cabeçalho. Depois clique em Salvar."
+    ? "Cole colunas inteiras do Excel/Sheets: clique na célula de início na coluna desejada e dê Ctrl+V. Linhas são criadas automaticamente. Depois clique em Salvar."
     : "Visualização somente leitura.");
 
   // Eventos dos botões do modal
@@ -519,8 +518,9 @@ function abrirPlanilha(tipo){
   id("btnDeleteSel").onclick = excluirSelecionados;
   id("excelInputModal").onchange = importarExcelModal;
 
-  // Handler de COLAR dentro da planilha (somente master)
-  body.onpaste = (e)=> handlePasteIntoSheet(e);
+  // Colagem por COLUNA (várias linhas) – captura mesmo dentro de célula
+  body.onpaste = handlePasteColumn;
+  body.addEventListener("paste", handlePasteColumn, true);
 
   id("modalList").classList.remove("hidden");
 }
@@ -631,124 +631,67 @@ function toggleSelectAll(master){
   document.querySelectorAll(".rowchk").forEach(c=> c.checked = master.checked);
 }
 
-/* =============== COLAR DIRETO NO MODAL (Excel/Sheets) =============== */
-function handlePasteIntoSheet(e){
+/* =============== COLAR VÁRIAS LINHAS EM UMA COLUNA =============== */
+function handlePasteColumn(e){
   if(usuarioAtual?.role!=="master") return;
-  const body = id("modalBody");
-  const activeInsideSheet = document.activeElement && body.contains(document.activeElement);
-  // Mesmo se não estiver focado em uma célula, tratamos a colagem
+
+  const td = e.target.closest('td[data-field]');
+  if(!td) return; // só tratamos colagem em células editáveis
+
   const text = (e.clipboardData || window.clipboardData)?.getData("text");
   if(!text) return;
 
   e.preventDefault();
 
-  // Tenta detectar TSV primeiro (Excel/Sheets), depois CSV
-  let rows = text.split(/\r?\n/).filter(l=>l.trim().length>0).map(l=>{
-    // prioridade tab; senão vírgula; senão ponto e vírgula
-    if(l.includes("\t")) return l.split("\t").map(x=>x.trim());
-    if(l.includes(",")) return splitCSVLine(l, ",");
-    if(l.includes(";")) return splitCSVLine(l, ";");
-    return [l.trim()];
-  });
-  if(rows.length===0) return;
+  // Se vier TSV/CSV, usamos apenas a PRIMEIRA coluna. Cada linha vira uma célula abaixo.
+  const lines = text
+    .split(/\r?\n/)
+    .map(l => l.trim())
+    .filter(l => l.length>0)
+    .map(l => {
+      if(l.includes("\t")) return l.split("\t")[0].trim();
+      if(l.includes(","))  return l.split(",")[0].trim();
+      if(l.includes(";"))  return l.split(";")[0].trim();
+      return l;
+    });
 
-  // Se a primeira linha for cabeçalho, mapeia por nomes
-  const headRaw = rows[0];
-  const headNorm = headRaw.map(normalizeHeader);
-  const isHeaderLikely = headNorm.some(h=>["cliente","pedido","produto","quantidade","motivo","motivoobs","setor","datacliente","dataentrega"].includes(h));
+  if(lines.length===0) return;
 
-  const buildObj = (arr)=>{
-    if(modalTipo==="fora"){
-      if(isHeaderLikely){
-        const idx = {
-          cliente: headNorm.indexOf("cliente"),
-          pedido: headNorm.indexOf("pedido"),
-          produto: headNorm.indexOf("produto"),
-          quantidade: headNorm.indexOf("quantidade"),
-          motivo: (()=>{
-            const i1=headNorm.indexOf("motivo"), i2=headNorm.indexOf("motivoobs");
-            return i1>=0?i1:(i2>=0?i2:-1);
-          })(),
-          setor: headNorm.indexOf("setor"),
-          datacliente: headNorm.indexOf("datacliente"),
-          dataentrega: headNorm.indexOf("dataentrega")
-        };
-        return (r)=>({
-          cliente: (r[idx.cliente]??"").toString().trim(),
-          pedido: (r[idx.pedido]??"").toString().trim(),
-          produto: (r[idx.produto]??"").toString().trim(),
-          quantidade: (r[idx.quantidade]??"").toString().trim(),
-          motivo: idx.motivo>=0 ? (r[idx.motivo]??"").toString().trim() : "",
-          setor: (r[idx.setor]??"").toString().trim(),
-          dataCliente: normalizeDateToISO((r[idx.datacliente]??"").toString().trim()),
-          dataEntrega: normalizeDateToISO((r[idx.dataentrega]??"").toString().trim())
-        });
-      } else {
-        // Ordem esperada sem cabeçalho: cliente,pedido,produto,quantidade,motivo,setor,datacliente,dataentrega
-        return (r)=>({
-          cliente:(r[0]??"").toString().trim(),
-          pedido:(r[1]??"").toString().trim(),
-          produto:(r[2]??"").toString().trim(),
-          quantidade:(r[3]??"").toString().trim(),
-          motivo:(r[4]??"").toString().trim(),
-          setor:(r[5]??"").toString().trim(),
-          dataCliente: normalizeDateToISO((r[6]??"").toString().trim()),
-          dataEntrega: normalizeDateToISO((r[7]??"").toString().trim())
-        });
-      }
-    } else {
-      // noPrazo
-      if(isHeaderLikely){
-        const idx = {
-          cliente: headNorm.indexOf("cliente"),
-          pedido: headNorm.indexOf("pedido"),
-          produto: headNorm.indexOf("produto"),
-          quantidade: headNorm.indexOf("quantidade"),
-          datacliente: headNorm.indexOf("datacliente"),
-          dataentrega: headNorm.indexOf("dataentrega")
-        };
-        return (r)=>({
-          cliente: (r[idx.cliente]??"").toString().trim(),
-          pedido: (r[idx.pedido]??"").toString().trim(),
-          produto: (r[idx.produto]??"").toString().trim(),
-          quantidade: (r[idx.quantidade]??"").toString().trim(),
-          dataCliente: normalizeDateToISO((r[idx.datacliente]??"").toString().trim()),
-          dataEntrega: normalizeDateToISO((r[idx.dataentrega]??"").toString().trim())
-        });
-      } else {
-        // Ordem esperada sem cabeçalho: cliente,pedido,produto,quantidade,datacliente,dataentrega
-        return (r)=>({
-          cliente:(r[0]??"").toString().trim(),
-          pedido:(r[1]??"").toString().trim(),
-          produto:(r[2]??"").toString().trim(),
-          quantidade:(r[3]??"").toString().trim(),
-          dataCliente: normalizeDateToISO((r[4]??"").toString().trim()),
-          dataEntrega: normalizeDateToISO((r[5]??"").toString().trim())
-        });
-      }
-    }
-  };
+  const tbody = document.getElementById("modalBody");
+  const rows = [...tbody.querySelectorAll("tr")];
 
-  const mapRow = buildObj(rows[0]);
-  // Se tem cabeçalho, pula a primeira linha
-  const startIdx = isHeaderLikely ? 1 : 0;
+  const startRow = rows.indexOf(td.parentElement);
+  if(startRow < 0) return;
 
-  const novos=[];
-  for(let i=startIdx;i<rows.length;i++){
-    const r = rows[i]; if(!r || r.length===0) continue;
-    const obj = mapRow(r);
-    if(obj && obj.cliente && obj.pedido && obj.dataEntrega){
-      novos.push(obj);
+  // cria linhas em branco se necessário (apenas no DOM – salvar é manual)
+  const need = startRow + lines.length - rows.length;
+  if(need > 0){
+    for(let i=0;i<need;i++){
+      const objVazio = (modalTipo==="fora")
+        ? {cliente:"",pedido:"",produto:"",quantidade:"",motivo:"",setor:"",dataCliente:"",dataEntrega:""}
+        : {cliente:"",pedido:"",produto:"",quantidade:"",dataCliente:"",dataEntrega:""};
+      const idxView = rows.length + i;
+      const html = linhaModalHTML(objVazio, idxView, modalTipo, true);
+      tbody.insertAdjacentHTML("beforeend", html);
     }
   }
 
-  if(novos.length===0){ alert("Nada para adicionar a partir da colagem."); return; }
+  const field = td.getAttribute("data-field");
+  const finalRows = [...tbody.querySelectorAll("tr")];
 
-  if(modalTipo==="fora"){ atrasos = atrasos.concat(novos); REF_FORA.set(atrasos); }
-  else { noPrazo = noPrazo.concat(novos); REF_PRAZO.set(noPrazo); }
+  for(let i=0;i<lines.length;i++){
+    const tr = finalRows[startRow + i];
+    if(!tr) break;
+    const cell = tr.querySelector(`td[data-field="${field}"]`);
+    if(cell){
+      cell.textContent = lines[i];
+    }
+  }
 
-  alert(`Colagem concluída: ${novos.length} linha(s) adicionada(s). Clique em Salvar para fixar as edições atuais.`);
-  abrirPlanilha(modalTipo);
+  const hint = document.getElementById("modalHint");
+  if(hint){
+    hint.textContent = "Colagem concluída nesta coluna. Revise e clique em Salvar para gravar no banco.";
+  }
 }
 
 /* =============== IMPORTAR NO MODAL (XLSX/CSV) =============== */
@@ -851,7 +794,7 @@ id("visSaveBtn").addEventListener("click", async ()=>{
   ajustarGridGraficos();
 });
 
-/* =============== CSV global (fora prazo) legado) =============== */
+/* =============== CSV (fora prazo) legado =============== */
 id("csvInput").addEventListener("change", async ev=>{
   if(usuarioAtual?.role!=="master"){ ev.target.value=""; return; }
   const file=ev.target.files?.[0]; if(!file) return;
