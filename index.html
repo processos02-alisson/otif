@@ -52,7 +52,7 @@
       <div class="max-w-7xl mx-auto px-6 py-5 flex items-center justify-between">
         <div>
           <h2 class="text-2xl font-bold tracking-tight">📊 Painel OTIF</h2>
-          <p class="text-sm text-blue-100">Visual ao vivo para toda a empresa</p>
+          <p class="text-sm text-blue-100">#MegaOtif - Atualizações em tempo real</p>
         </div>
         <div class="flex items-center gap-3">
           <span id="userName" class="text-sm bg-white/15 px-3 py-1 rounded-full"></span>
@@ -493,7 +493,7 @@ function bindCardOpeners(){
 function abrirPlanilha(tipo){
   modalTipo=tipo;
   const isMaster = usuarioAtual?.role==="master";
-  txt("modalListTitle", tipo==="fora" ? "Fora do Prazo — editar/alimentar" : "No Prazo — editar/alimentar");
+  txt("modalListTitle", tipo==="fora" ? "Fora do Prazo" : "No Prazo");
 
   // Botões visíveis só para master
   toggle("#btnAddRow", isMaster);
@@ -902,3 +902,4 @@ function enableLongPress(el, cb, ms=600){
 </script>
 </body>
 </html>
+
