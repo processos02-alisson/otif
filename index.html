@@ -6,6 +6,8 @@
   <title>Painel OTIF</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <!-- Plugin para rótulos de dados na pizza (% dentro das fatias) -->
+  <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2.2.0"></script>
   <!-- Firebase SDKs (Compat) -->
   <script src="https://www.gstatic.com/firebasejs/10.14.0/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.14.0/firebase-database-compat.js"></script>
@@ -167,7 +169,10 @@
         </div>
         <div id="sectionPareto" class="bg-white rounded-2xl shadow p-4">
           <h3 class="font-semibold mb-2">Pareto – Setores</h3>
-          <canvas id="graficoPareto"></canvas>
+          <!-- altura maior para o Pareto -->
+          <div class="h-80 md:h-[420px]">
+            <canvas id="graficoPareto"></canvas>
+          </div>
         </div>
         <div id="sectionLinha" class="bg-white rounded-2xl shadow p-4">
           <h3 class="font-semibold mb-2">Evolução (atrasos por dia)</h3>
@@ -439,17 +444,108 @@ function renderGraficos(data){
   if(chartPareto) chartPareto.destroy();
   if(chartLinha) chartLinha.destroy();
 
-  const motivos=countBy(data, d=> (d.motivo||"Sem motivo"));
-  chartPizza=new Chart(id("graficoPizza"),{type:"pie",data:{labels:Object.keys(motivos),datasets:[{data:Object.values(motivos)}]}});
-
-  const setoresMap=countBy(data, d=> (d.setor||"Sem setor"));
-  const setoresOrd=Object.entries(setoresMap).sort((a,b)=>b[1]-a[1]);
-  chartPareto=new Chart(id("graficoPareto"),{
-    type:"bar",
-    data:{labels:setoresOrd.map(x=>x[0]),datasets:[{label:"Atrasos",data:setoresOrd.map(x=>x[1])}]},
-    options:{plugins:{legend:{display:false}}}
+  /* --- Pizza com % dentro das fatias --- */
+  const motivos = countBy(data, d => (d.motivo || "Sem motivo"));
+  const pizzaLabels = Object.keys(motivos);
+  const pizzaValues = Object.values(motivos);
+  const pizzaColors = [
+    "#22c55e","#3b82f6","#f59e0b","#ef4444","#8b5cf6",
+    "#10b981","#f97316","#06b6d4","#84cc16","#e11d48"
+  ];
+  chartPizza = new Chart(id("graficoPizza"), {
+    type: "pie",
+    data: {
+      labels: pizzaLabels,
+      datasets: [{
+        data: pizzaValues,
+        backgroundColor: pizzaLabels.map((_,i)=> pizzaColors[i % pizzaColors.length])
+      }]
+    },
+    options: {
+      plugins: {
+        legend: { position: "bottom" },
+        datalabels: {
+          color: "#fff",
+          font: { weight: "bold" },
+          formatter: (value, ctx) => {
+            const total = ctx.chart.data.datasets[0].data.reduce((a,b)=>a+b,0);
+            return total ? (value/total*100).toFixed(1) + "%" : "";
+          }
+        }
+      }
+    },
+    plugins: [ChartDataLabels]
   });
 
+  /* --- Pareto maior, sem grid, cores por setor + curva acumulada (%) --- */
+  const setoresMap = countBy(data, d => (d.setor || "Sem setor"));
+  const setoresOrd = Object.entries(setoresMap).sort((a,b)=> b[1]-a[1]);
+  const labels = setoresOrd.map(x => x[0]);
+  const values = setoresOrd.map(x => x[1]);
+
+  const palette = [
+    "#2563eb","#dc2626","#16a34a","#f59e0b","#7c3aed",
+    "#0891b2","#ef4444","#22c55e","#a855f7","#fb923c",
+    "#0ea5e9","#e11d48","#84cc16","#f97316","#06b6d4"
+  ];
+  const barColors = labels.map((_, i) => palette[i % palette.length]);
+
+  const total = values.reduce((a,b)=>a+b,0);
+  let running = 0;
+  const cumulativePct = values.map(v => (running += v, total ? (running/total*100) : 0));
+
+  chartPareto = new Chart(id("graficoPareto"), {
+    type: "bar",
+    data: {
+      labels,
+      datasets: [
+        {
+          type: "bar",
+          label: "Atrasos",
+          data: values,
+          backgroundColor: barColors,
+          borderWidth: 0,
+          yAxisID: "y"
+        },
+        {
+          type: "line",
+          label: "Acumulado %",
+          data: cumulativePct,
+          yAxisID: "y1",
+          borderWidth: 2,
+          pointRadius: 3,
+          tension: 0.3,
+          fill: false
+        }
+      ]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false, // usa a altura do container
+      plugins: {
+        legend: { position: "bottom" }
+      },
+      scales: {
+        x: { grid: { display: false } },
+        y: {
+          beginAtZero: true,
+          grid: { display: false },
+          title: { display: true, text: "Qtde" }
+        },
+        y1: {
+          position: "right",
+          beginAtZero: true,
+          min: 0,
+          max: 100,
+          grid: { display: false },
+          ticks: { callback: v => v + "%" },
+          title: { display: true, text: "Acumulado (%)" }
+        }
+      }
+    }
+  });
+
+  /* --- Linha (inalterado) --- */
   const porData=countBy(data, d=> d.dataEntrega||"");
   const datasOrd=Object.keys(porData).sort();
   chartLinha=new Chart(id("graficoLinha"),{
@@ -902,4 +998,3 @@ function enableLongPress(el, cb, ms=600){
 </script>
 </body>
 </html>
-
