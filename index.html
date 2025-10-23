@@ -6,7 +6,6 @@
   <title>Painel OTIF</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-  <!-- Plugin para rótulos de dados na pizza (% dentro das fatias) -->
   <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2.2.0"></script>
   <!-- Firebase SDKs (Compat) -->
   <script src="https://www.gstatic.com/firebasejs/10.14.0/firebase-app-compat.js"></script>
@@ -15,13 +14,19 @@
   <!-- SheetJS para Excel -->
   <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 
-  <!-- ====== ESTILO BASE (apenas visual) ====== -->
   <style>
     :root{
       --carmim:#A1122D;
       --carmim-dark:#7E0E22;
+      --tx:.3s; /* transição suave */
     }
     html { font-family: Inter, system-ui, -apple-system, Segoe UI, Roboto, "Helvetica Neue", Arial, "Noto Sans"; }
+    /* Transição suave entre temas */
+    html, body, header, main, footer,
+    .card, .chip, .btn, .tbl th, .tbl td,
+    .rounded-2xl, .border, .bg-white, .dark\:bg-zinc-800{
+      transition: background-color var(--tx) ease, color var(--tx) ease, border-color var(--tx) ease, box-shadow var(--tx) ease;
+    }
     .card{transition:transform .15s ease,box-shadow .15s ease}
     .card:hover{transform:translateY(-2px);box-shadow:0 12px 30px rgba(0,0,0,.08)}
     .chip{font-size:.75rem;padding:.5rem .75rem;border-radius:9999px;background:#f1f5f9;color:#475569}
@@ -31,7 +36,6 @@
     .cell-edit[contenteditable="true"]{background:#fffbe6;outline:none}
     .icon-btn{font-size:.9rem;padding:.35rem .6rem;border-radius:.375rem}
     .th-sticky{position:sticky; top:0; background:#f1f5f9; z-index:1}
-    /* Alvos maiores no mobile */
     @media (max-width:640px){
       .icon-btn,.btn{padding:.6rem .8rem}
       .card{padding:1rem}
@@ -39,85 +43,87 @@
   </style>
 </head>
 
-<body class="min-h-screen bg-slate-50 text-slate-800 dark:bg-zinc-900 dark:text-zinc-100 transition-colors">
+<body class="min-h-screen bg-slate-50 text-slate-800 dark:bg-zinc-900 dark:text-zinc-100">
   <script>
-    // ====== Tema: modo claro por padrão, mas respeita preferência salva ======
-    const __savedTheme = localStorage.getItem('theme');
-    if (__savedTheme === 'dark') document.documentElement.classList.add('dark');
+    // Tema: claro por padrão; respeita preferência salva
+    (function(){
+      var saved = localStorage.getItem('theme');
+      if (saved === 'dark') document.documentElement.classList.add('dark');
+    })();
   </script>
 
-  <!-- ====== LOGIN (VISUAL ATUALIZADO) ====== -->
+  <!-- LOGIN -->
   <section id="login-screen" class="min-h-screen grid place-items-center">
-    <div class="w-full max-w-md">
-      <!-- Card -->
-      <div class="rounded-2xl border border-zinc-200 bg-white shadow-xl dark:border-zinc-700 dark:bg-zinc-800 overflow-hidden">
-        <!-- Topo com logo e título -->
-        <div class="px-8 pt-8 pb-6 text-center relative">
-          <!-- Vinheta carmim leve no fundo do card -->
-          <div class="pointer-events-none absolute inset-0 opacity-10" style="background: radial-gradient(30rem 20rem at 50% 10%, var(--carmim), transparent 60%);"></div>
-          <img src="ats-logo.png" alt="ATS" class="relative mx-auto h-14 w-auto object-contain mb-3">
-          <h1 class="relative text-3xl font-extrabold tracking-tight">
-            Painel <span style="color:var(--carmim)">OTIF</span>
-          </h1>
-          <p class="relative text-sm text-slate-500 dark:text-zinc-300 mt-1">Acesse com seu usuário e senha</p>
+    <div class="w-full max-w-md rounded-2xl border border-zinc-200 bg-white shadow-xl dark:border-zinc-700 dark:bg-zinc-800 overflow-hidden">
+      <div class="px-8 pt-8 pb-6 text-center relative">
+        <div class="pointer-events-none absolute inset-0 opacity-10" style="background: radial-gradient(30rem 20rem at 50% 10%, var(--carmim), transparent 60%);"></div>
 
-          <!-- Toggle Tema -->
-          <button id="themeToggleLogin" class="absolute top-3 right-3 inline-flex items-center gap-2 rounded-full border border-zinc-300/70 bg-white/80 px-3 py-1.5 text-sm font-medium shadow-sm backdrop-blur-sm hover:bg-white dark:border-zinc-700 dark:bg-zinc-700 dark:hover:bg-zinc-600 transition" title="Alternar tema">
-            <span id="themeIconLogin">🌙</span><span class="hidden sm:inline">Tema</span>
-          </button>
-        </div>
+        <!-- LOGO (coloque o arquivo ats-logo.png na mesma pasta) -->
+        <img src="ats-logo.png" alt="ATS" class="relative mx-auto h-14 w-auto object-contain mb-3"/>
 
-        <!-- Form -->
-        <div class="px-8 pb-6 space-y-3">
-          <input id="user" class="w-full rounded-xl border border-slate-300 p-3 bg-white placeholder-slate-400 focus:border-[color:var(--carmim)] focus:ring-2 focus:ring-[color:var(--carmim)]/20 dark:border-zinc-600 dark:bg-zinc-900" placeholder="Usuário"/>
-          <div class="relative">
-            <input id="pass" type="password" class="w-full rounded-xl border border-slate-300 p-3 pr-10 bg-white placeholder-slate-400 focus:border-[color:var(--carmim)] focus:ring-2 focus:ring-[color:var(--carmim)]/20 dark:border-zinc-600 dark:bg-zinc-900" placeholder="Senha"/>
-            <button type="button" id="togglePass" class="absolute inset-y-0 right-0 pr-3 text-slate-500 hover:text-slate-700 dark:text-zinc-400 dark:hover:text-zinc-200">👁️</button>
-          </div>
-          <button onclick="login()" class="w-full rounded-xl bg-[color:var(--carmim)] hover:bg-[color:var(--carmim-dark)] text-white font-semibold py-3 shadow-sm transition">Entrar</button>
-        </div>
+        <h1 class="relative text-3xl font-extrabold">
+          Painel <span style="color:var(--carmim)">OTIF</span>
+        </h1>
+        <p class="relative text-sm text-slate-500 dark:text-zinc-300 mt-1">Acesse com seu usuário e senha</p>
 
-        <!-- Rodapé login -->
-        <div class="flex items-center justify-center gap-2 border-t border-zinc-200 bg-zinc-50 px-6 py-3 text-sm text-zinc-600 dark:border-zinc-700 dark:bg-zinc-800/60 dark:text-zinc-300">
-          <span class="font-medium">ATS</span>
-          <span class="select-none">—</span>
-          <a href="mailto:alissonthss@outlook.com" class="underline underline-offset-2 hover:opacity-80">alissonthss@outlook.com</a>
+        <!-- Botão de tema (login) -->
+        <button id="themeToggleLogin"
+                onclick="toggleTheme('login')"
+                class="absolute top-3 right-3 inline-flex items-center gap-2 rounded-full border border-zinc-300/70 bg-white/80 px-3 py-1.5 text-sm font-medium shadow-sm backdrop-blur-sm hover:bg-white dark:border-zinc-700 dark:bg-zinc-700 dark:hover:bg-zinc-600"
+                title="Alternar tema">
+          <span id="themeIconLogin">🌙</span><span class="hidden sm:inline">Tema</span>
+        </button>
+      </div>
+
+      <div class="px-8 pb-6 space-y-3">
+        <input id="user" class="w-full rounded-xl border border-slate-300 p-3 bg-white placeholder-slate-400 focus:border-[color:var(--carmim)] focus:ring-2 focus:ring-[color:var(--carmim)]/20 dark:border-zinc-600 dark:bg-zinc-900" placeholder="Usuário"/>
+        <div class="relative">
+          <input id="pass" type="password" class="w-full rounded-xl border border-slate-300 p-3 pr-10 bg-white placeholder-slate-400 focus:border-[color:var(--carmim)] focus:ring-2 focus:ring-[color:var(--carmim)]/20 dark:border-zinc-600 dark:bg-zinc-900" placeholder="Senha"/>
+          <button type="button" onclick="(function(){const i=document.getElementById('pass'); i.type=(i.type==='password'?'text':'password');})()" class="absolute inset-y-0 right-0 pr-3 text-slate-500 hover:text-slate-700 dark:text-zinc-400 dark:hover:text-zinc-200" title="Mostrar Ocultar">👁️</button>
         </div>
+        <button onclick="login()" class="w-full rounded-xl bg-[color:var(--carmim)] hover:bg-[color:var(--carmim-dark)] text-white font-semibold py-3 shadow-sm">Entrar</button>
+      </div>
+
+      <!-- Rodapé do login -->
+      <div class="flex items-center justify-center gap-2 border-t border-zinc-200 bg-zinc-50 px-6 py-3 text-sm text-zinc-600 dark:border-zinc-700 dark:bg-zinc-800/60 dark:text-zinc-300">
+        <span class="font-medium">ATS</span>
+        <span class="select-none">—</span>
+        <a href="mailto:alissonthss@outlook.com" class="underline underline-offset-2 hover:opacity-80">alissonthss@outlook.com</a>
       </div>
     </div>
   </section>
 
-  <!-- ====== DASHBOARD (APENAS VISUAL DO HEADER + RODAPÉ atualizados) ====== -->
+  <!-- DASHBOARD -->
   <section id="dashboard" class="hidden">
-    <!-- Header atualizado (gradiente carmim + logo + toggle tema) -->
     <header class="relative isolate">
       <div class="bg-gradient-to-r from-[color:var(--carmim-dark)] to-[color:var(--carmim)] text-white">
         <div class="max-w-7xl mx-auto px-6 py-5 flex items-center justify-between">
           <div class="flex items-center gap-3">
-            <img src="ats-logo.png" alt="ATS" class="h-8 w-8 object-contain">
+            <!-- LOGO no header -->
+            <img src="ats-logo.png" alt="ATS" class="h-8 w-8 object-contain"/>
             <div>
               <h2 class="text-2xl font-bold tracking-tight">Painel OTIF</h2>
               <p class="text-sm text-white/85">#MegaOtif - Atualizações em tempo real</p>
             </div>
           </div>
           <div class="flex items-center gap-2">
-            <!-- Toggle Tema Header -->
-            <button id="themeToggleHeader" class="inline-flex items-center gap-2 rounded-full bg-white/15 px-3 py-1.5 text-sm hover:bg-white/25 transition" title="Alternar tema">
+            <!-- Botão de tema no header -->
+            <button id="themeToggleHeader"
+                    onclick="toggleTheme('header')"
+                    class="inline-flex items-center gap-2 rounded-full bg-white/15 px-3 py-1.5 text-sm hover:bg-white/25"
+                    title="Alternar tema">
               <span id="themeIconHeader">🌙</span><span class="hidden sm:inline">Tema</span>
             </button>
             <span id="userName" class="text-sm bg-white/15 px-3 py-1 rounded-full"></span>
-            <button onclick="logout()" class="text-sm font-semibold bg-white px-3 py-1 rounded-lg text-[color:var(--carmim-dark)] shadow hover:bg-zinc-50 transition">Sair</button>
+            <button onclick="logout()" class="text-sm font-semibold bg-white px-3 py-1 rounded-lg text-[color:var(--carmim-dark)] shadow hover:bg-zinc-50">Sair</button>
           </div>
         </div>
       </div>
       <div id="metaBanner" class="hidden text-center py-2 font-semibold"></div>
-      <!-- linha separadora -->
       <div class="h-px w-full bg-black/10 dark:bg-white/10"></div>
     </header>
 
     <main class="max-w-7xl mx-auto px-6 py-6 space-y-6">
-      <!-- ====== ABAIXO MANTÉM-SE O CONTEÚDO ORIGINAL (filtros, painéis, gráficos, tabelas) ====== -->
-
       <!-- Filtros -->
       <div class="bg-white rounded-2xl shadow p-4 dark:bg-zinc-800 dark:border dark:border-zinc-700">
         <div class="flex flex-wrap items-center gap-3">
@@ -180,6 +186,13 @@
           <div class="mt-2 text-2xl font-bold text-amber-800 dark:text-amber-200" id="naoClassificados">0</div>
         </div>
 
+        <div class="card bg-blue-50 rounded-2xl shadow p-4 dark:bg-blue-900/25">
+          <div class="flex justify-between">
+            <span class="text-blue-700 dark:text-blue-300">OTIF (%)</span><span>📈</span>
+          </div>
+          <div class="mt-2 text-2xl font-bold text-blue-800 dark:text-blue-200" id="otifPercent">0%</div>
+        </div>
+
         <div class="card bg-white rounded-2xl shadow p-4 dark:bg-zinc-800 dark:border dark:border-zinc-700">
           <div class="flex justify-between items-center">
             <span class="text-slate-700 dark:text-zinc-200">Meta (%)</span>
@@ -191,13 +204,6 @@
             <button id="btnSaveMeta" class="hidden text-xs bg-emerald-600 text-white px-2 py-1 rounded">Salvar</button>
             <button id="btnCancelMeta" class="hidden text-xs bg-slate-300 text-slate-800 px-2 py-1 rounded">Cancelar</button>
           </div>
-        </div>
-
-        <div class="card bg-blue-50 rounded-2xl shadow p-4 dark:bg-blue-900/25">
-          <div class="flex justify-between">
-            <span class="text-blue-700 dark:text-blue-300">OTIF (%)</span><span>📈</span>
-          </div>
-          <div class="mt-2 text-2xl font-bold text-blue-800 dark:text-blue-200" id="otifPercent">0%</div>
         </div>
       </div>
 
@@ -255,7 +261,7 @@
       </div>
     </main>
 
-    <!-- Rodapé do dashboard -->
+    <!-- Rodapé fixo -->
     <footer class="mt-10 mb-6">
       <div class="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
         <div class="rounded-2xl border border-zinc-200 bg-white px-4 py-3 text-sm text-zinc-600 shadow-sm dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-300 flex items-center justify-center gap-2">
@@ -267,7 +273,7 @@
     </footer>
   </section>
 
-  <!-- ====== MODAL: planilha (No Prazo / Fora Prazo) ====== -->
+  <!-- MODAL: planilha (No Prazo / Fora Prazo) -->
   <div id="modalList" class="hidden fixed inset-0 modal-bg z-40">
     <div class="min-h-full grid place-items-center px-4">
       <div class="bg-white w-full max-w-6xl rounded-2xl shadow-2xl p-6 dark:bg-zinc-800 dark:text-zinc-100">
@@ -295,7 +301,7 @@
   </div>
 
 <script>
-/* =============== Firebase Init (INALTERADO) =============== */
+/* =============== Firebase Init =============== */
 const firebaseConfig = {
   apiKey: "AIzaSyBbo6DNAzPFqUgfu_zDjw7f_711L3UfHfY",
   authDomain: "painel-otif.firebaseapp.com",
@@ -311,7 +317,7 @@ const db = firebase.database();
 const auth = firebase.auth();
 auth.setPersistence(firebase.auth.Auth.Persistence.LOCAL);
 
-/* =============== GLOBAL STATE/REFS (INALTERADO) =============== */
+/* =============== GLOBAL STATE/REFS =============== */
 const REF_FORA   = db.ref("otif/foraPrazo");
 const REF_PRAZO  = db.ref("otif/noPrazo");
 const REF_META   = db.ref("otif/meta/globalPercent");
@@ -325,7 +331,7 @@ let chartPizza=null, chartPareto=null, chartLinha=null;
 let usuarioAtual = { nome:'visual', role:'visual' }; // default
 let modalTipo="fora";
 
-/* =============== AUTH STATE (INALTERADO) =============== */
+/* =============== AUTH STATE =============== */
 auth.onAuthStateChanged(async (user) => {
   if (user) {
     try{
@@ -358,7 +364,7 @@ auth.onAuthStateChanged(async (user) => {
   if (typeof renderizarTudo === 'function') renderizarTudo();
 });
 
-/* =============== LOGIN/LOGOUT (INALTERADO) =============== */
+/* =============== LOGIN/LOGOUT =============== */
 async function login(){
   const u = qs("#user").value.trim();
   const p = qs("#pass").value.trim();
@@ -394,7 +400,7 @@ async function logout(){
   id('login-screen').classList.remove('hidden');
 }
 
-/* =============== SUBSCRIBE DB (INALTERADO) =============== */
+/* =============== SUBSCRIBE DB =============== */
 REF_FORA.on("value", s=>{ atrasos = s.val() || []; renderizarTudo(); });
 REF_PRAZO.on("value", s=>{ noPrazo = s.val() || []; renderizarTudo(); });
 REF_META.on("value", s=>{ const v=parseFloat(s.val()); if(!isNaN(v)) metaValue=v; renderizarTudo(); });
@@ -407,7 +413,7 @@ REF_VIS.on("value", s=>{
   applyVisibilityForViewer(); ajustarGridGraficos();
 });
 
-/* =============== FILTERS/RENDER (INALTERADO) =============== */
+/* =============== FILTERS/RENDER =============== */
 function filtrarDados(){ renderizarTudo(); }
 function presetDia(){ const d=isoToday(); setDates(d,d); renderizarTudo(); }
 function presetSemana(){
@@ -459,7 +465,7 @@ function renderizarTudo(){
   ajustarGridGraficos();
 }
 
-/* =============== BANNER META (INALTERADO) =============== */
+/* =============== BANNER META (👍/👎) =============== */
 function atualizarStatusMeta(otif, meta){
   const banner = id("metaBanner");
   const bateu = otif >= meta;
@@ -469,7 +475,7 @@ function atualizarStatusMeta(otif, meta){
   banner.className = "text-center py-2 font-semibold " + (bateu ? "bg-emerald-50 text-emerald-700" : "bg-rose-50 text-rose-700");
 }
 
-/* =============== EDIÇÃO DE META (INALTERADO) =============== */
+/* =============== EDIÇÃO DE META (MASTER) =============== */
 function bindMetaButtons(){
   const edit = id("btnEditMeta"), save=id("btnSaveMeta"), cancel=id("btnCancelMeta");
   if(!edit || !save || !cancel) return;
@@ -501,7 +507,7 @@ function bindMetaButtons(){
   };
 }
 
-/* =============== CHARTS (INALTERADO) =============== */
+/* =============== CHARTS =============== */
 function renderGraficos(data){
   if(chartPizza) chartPizza.destroy();
   if(chartPareto) chartPareto.destroy();
@@ -540,7 +546,7 @@ function renderGraficos(data){
     plugins: [ChartDataLabels]
   });
 
-  /* --- Pareto maior, sem grid, cores por setor + curva acumulada (%) --- */
+  /* --- Pareto --- */
   const setoresMap = countBy(data, d => (d.setor || "Sem setor"));
   const setoresOrd = Object.entries(setoresMap).sort((a,b)=> b[1]-a[1]);
   const labels = setoresOrd.map(x => x[0]);
@@ -585,7 +591,9 @@ function renderGraficos(data){
     options: {
       responsive: true,
       maintainAspectRatio: false,
-      plugins: { legend: { position: "bottom" } },
+      plugins: {
+        legend: { position: "bottom" }
+      },
       scales: {
         x: { grid: { display: false } },
         y: {
@@ -606,7 +614,7 @@ function renderGraficos(data){
     }
   });
 
-  /* --- Linha (inalterado) --- */
+  /* --- Linha --- */
   const porData=countBy(data, d=> d.dataEntrega||"");
   const datasOrd=Object.keys(porData).sort();
   chartLinha=new Chart(id("graficoLinha"),{
@@ -617,7 +625,7 @@ function renderGraficos(data){
 }
 function countBy(arr, fn){ const m={}; arr.forEach(x=>{const k=fn(x); m[k]=(m[k]||0)+1;}); return m; }
 
-/* =============== GRID AJUSTE (INALTERADO) =============== */
+/* =============== GRID AJUSTE =============== */
 function ajustarGridGraficos(){
   const grid = id("graficoGrid");
   const visiveis = ["#sectionPie","#sectionPareto","#sectionLinha"]
@@ -632,7 +640,7 @@ function ajustarGridGraficos(){
   visiveis.forEach(v => v.classList.add("h-full"));
 }
 
-/* =============== CARDS: dblclick + toque longo (INALTERADO) =============== */
+/* =============== CARDS: dblclick + toque longo (MOBILE) =============== */
 function bindCardOpeners(){
   const cPrazo = id("cardPrazo");
   const cFora  = id("cardFora");
@@ -646,7 +654,7 @@ function bindCardOpeners(){
   }
 }
 
-/* =============== MODAL PLANILHA (INALTERADO) =============== */
+/* =============== MODAL PLANILHA =============== */
 function abrirPlanilha(tipo){
   modalTipo=tipo;
   const isMaster = usuarioAtual?.role==="master";
@@ -686,9 +694,10 @@ function abrirPlanilha(tipo){
   id("btnDeleteSel").onclick = excluirSelecionados;
   id("excelInputModal").onchange = importarExcelModal;
 
-  // Colagem por COLUNA (várias linhas) – captura mesmo dentro de célula
-  body.onpaste = handlePasteColumn;
-  body.addEventListener("paste", handlePasteColumn, true);
+  // Colagem por COLUNA
+  const bodyEl = document.getElementById("modalBody");
+  bodyEl.onpaste = handlePasteColumn;
+  bodyEl.addEventListener("paste", handlePasteColumn, true);
 
   id("modalList").classList.remove("hidden");
 }
@@ -727,7 +736,7 @@ function linhaModalHTML(r, idxView, tipo, editable){
 }
 function fecharModalList(){ id("modalList").classList.add("hidden"); }
 
-/* Ações do modal (INALTERADO) */
+/* Ações do modal */
 async function addLinha(){
   if(usuarioAtual?.role!=="master") return;
   const novo = (modalTipo==="fora")
@@ -799,7 +808,7 @@ function toggleSelectAll(master){
   document.querySelectorAll(".rowchk").forEach(c=> c.checked = master.checked);
 }
 
-/* =============== COLAR VÁRIAS LINHAS EM UMA COLUNA (INALTERADO) =============== */
+/* =============== COLAR VÁRIAS LINHAS EM UMA COLUNA =============== */
 function handlePasteColumn(e){
   if(usuarioAtual?.role!=="master") return;
 
@@ -862,7 +871,7 @@ function handlePasteColumn(e){
   }
 }
 
-/* =============== IMPORTAR NO MODAL (XLSX/CSV) (INALTERADO) =============== */
+/* =============== IMPORTAR NO MODAL (XLSX/CSV) =============== */
 async function importarExcelModal(ev){
   if(usuarioAtual?.role!=="master") return;
   const file = ev.target.files?.[0]; if(!file) return;
@@ -938,7 +947,7 @@ async function importarExcelModal(ev){
   }
 }
 
-/* =============== VISIBILIDADE (viewer) (INALTERADO) =============== */
+/* =============== VISIBILIDADE (viewer) =============== */
 function applyVisibilityForViewer(){
   if(usuarioAtual?.role!=="visual"){
     show("#sectionPie", true); show("#sectionPareto", true); show("#sectionLinha", true); show("#sectionTabela", true);
@@ -962,7 +971,7 @@ id("visSaveBtn").addEventListener("click", async ()=>{
   ajustarGridGraficos();
 });
 
-/* =============== CSV (fora prazo) legado (INALTERADO) =============== */
+/* =============== CSV (fora prazo) legado =============== */
 id("csvInput").addEventListener("change", async ev=>{
   if(usuarioAtual?.role!=="master"){ ev.target.value=""; return; }
   const file=ev.target.files?.[0]; if(!file) return;
@@ -1012,7 +1021,7 @@ function baixarTemplate(){
   const a=document.createElement("a"); a.href=url; a.download="otif_foraprazo_template.csv"; a.click(); URL.revokeObjectURL(url);
 }
 
-/* =============== HELPERS (INALTERADO) =============== */
+/* =============== HELPERS =============== */
 function qs(s){return document.querySelector(s)}
 function id(s){return document.getElementById(s)}
 function txt(el,val){ id(el).textContent=val }
@@ -1057,45 +1066,29 @@ function enableLongPress(el, cb, ms=600){
   el.addEventListener('touchend',   ()=>{ if(t){ clearTimeout(t); } }, {passive:true});
 }
 
-/* ====== Toggle de senha + Tema (login/header) ====== */
-document.addEventListener('DOMContentLoaded', () => {
-  const passBtn = document.getElementById('togglePass');
-  if (passBtn) passBtn.addEventListener('click', () => {
-    const i = document.getElementById('pass');
-    i.type = i.type === 'password' ? 'text' : 'password';
-  });
-
-  const setTheme = (mode, who) => {
-    if (mode === 'dark') {
-      document.documentElement.classList.add('dark');
-      localStorage.setItem('theme', 'dark');
-      if (who==='login') document.getElementById('themeIconLogin').textContent='☀️';
-      if (who==='header') document.getElementById('themeIconHeader').textContent='☀️';
-    } else {
-      document.documentElement.classList.remove('dark');
-      localStorage.setItem('theme', 'light');
-      if (who==='login') document.getElementById('themeIconLogin').textContent='🌙';
-      if (who==='header') document.getElementById('themeIconHeader').textContent='🌙';
-    }
-  };
-
-  const btnLogin = document.getElementById('themeToggleLogin');
-  if (btnLogin) btnLogin.addEventListener('click', () => {
-    const dark = document.documentElement.classList.contains('dark');
-    setTheme(dark ? 'light' : 'dark', 'login');
-  });
-  const btnHeader = document.getElementById('themeToggleHeader');
-  if (btnHeader) btnHeader.addEventListener('click', () => {
-    const dark = document.documentElement.classList.contains('dark');
-    setTheme(dark ? 'light' : 'dark', 'header');
-  });
-
-  // Seta ícones iniciais conforme estado
+/* ====== Toggle de Tema (com transição suave) ====== */
+(function() {
+  // Ajusta ícones se já iniciar em dark
   if (document.documentElement.classList.contains('dark')) {
-    const iL = document.getElementById('themeIconLogin'); if (iL) iL.textContent='☀️';
-    const iH = document.getElementById('themeIconHeader'); if (iH) iH.textContent='☀️';
+    var il = document.getElementById('themeIconLogin');  if (il) il.textContent = '☀️';
+    var ih = document.getElementById('themeIconHeader'); if (ih) ih.textContent = '☀️';
   }
-});
+})();
+function setTheme(mode, who) {
+  if (mode === 'dark') {
+    document.documentElement.classList.add('dark');
+    localStorage.setItem('theme', 'dark');
+  } else {
+    document.documentElement.classList.remove('dark');
+    localStorage.setItem('theme', 'light');
+  }
+  try { if (who === 'login')  (document.getElementById('themeIconLogin')  || {textContent:''}).textContent  = document.documentElement.classList.contains('dark') ? '☀️' : '🌙'; } catch(_){}
+  try { if (who === 'header') (document.getElementById('themeIconHeader') || {textContent:''}).textContent = document.documentElement.classList.contains('dark') ? '☀️' : '🌙'; } catch(_){}
+}
+function toggleTheme(who) {
+  var dark = document.documentElement.classList.contains('dark');
+  setTheme(dark ? 'light' : 'dark', who);
+}
 </script>
 </body>
 </html>
