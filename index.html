@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="pt-BR">
+<html lang="pt-BR" class="h-full">
 <head>
   <meta charset="UTF-8"/>
   <meta name="viewport" content="width=device-width,initial-scale=1"/>
@@ -14,7 +14,14 @@
   <script src="https://www.gstatic.com/firebasejs/10.14.0/firebase-auth-compat.js"></script>
   <!-- SheetJS para Excel -->
   <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+
+  <!-- ====== ESTILO BASE (apenas visual) ====== -->
   <style>
+    :root{
+      --carmim:#A1122D;
+      --carmim-dark:#7E0E22;
+    }
+    html { font-family: Inter, system-ui, -apple-system, Segoe UI, Roboto, "Helvetica Neue", Arial, "Noto Sans"; }
     .card{transition:transform .15s ease,box-shadow .15s ease}
     .card:hover{transform:translateY(-2px);box-shadow:0 12px 30px rgba(0,0,0,.08)}
     .chip{font-size:.75rem;padding:.5rem .75rem;border-radius:9999px;background:#f1f5f9;color:#475569}
@@ -31,47 +38,93 @@
     }
   </style>
 </head>
-<body class="min-h-screen bg-slate-50 text-slate-800">
-  <!-- LOGIN -->
+
+<body class="min-h-screen bg-slate-50 text-slate-800 dark:bg-zinc-900 dark:text-zinc-100 transition-colors">
+  <script>
+    // ====== Tema: modo claro por padrão, mas respeita preferência salva ======
+    const __savedTheme = localStorage.getItem('theme');
+    if (__savedTheme === 'dark') document.documentElement.classList.add('dark');
+  </script>
+
+  <!-- ====== LOGIN (VISUAL ATUALIZADO) ====== -->
   <section id="login-screen" class="min-h-screen grid place-items-center">
-    <div class="w-full max-w-md bg-white rounded-2xl shadow-xl p-8">
-      <div class="text-center mb-6">
-        <h1 class="text-3xl font-extrabold">Painel <span class="text-blue-600">OTIF</span></h1>
-        <p class="text-sm text-slate-500 mt-1">Acesse com seu usuário e senha</p>
+    <div class="w-full max-w-md">
+      <!-- Card -->
+      <div class="rounded-2xl border border-zinc-200 bg-white shadow-xl dark:border-zinc-700 dark:bg-zinc-800 overflow-hidden">
+        <!-- Topo com logo e título -->
+        <div class="px-8 pt-8 pb-6 text-center relative">
+          <!-- Vinheta carmim leve no fundo do card -->
+          <div class="pointer-events-none absolute inset-0 opacity-10" style="background: radial-gradient(30rem 20rem at 50% 10%, var(--carmim), transparent 60%);"></div>
+          <img src="ats-logo.png" alt="ATS" class="relative mx-auto h-14 w-auto object-contain mb-3">
+          <h1 class="relative text-3xl font-extrabold tracking-tight">
+            Painel <span style="color:var(--carmim)">OTIF</span>
+          </h1>
+          <p class="relative text-sm text-slate-500 dark:text-zinc-300 mt-1">Acesse com seu usuário e senha</p>
+
+          <!-- Toggle Tema -->
+          <button id="themeToggleLogin" class="absolute top-3 right-3 inline-flex items-center gap-2 rounded-full border border-zinc-300/70 bg-white/80 px-3 py-1.5 text-sm font-medium shadow-sm backdrop-blur-sm hover:bg-white dark:border-zinc-700 dark:bg-zinc-700 dark:hover:bg-zinc-600 transition" title="Alternar tema">
+            <span id="themeIconLogin">🌙</span><span class="hidden sm:inline">Tema</span>
+          </button>
+        </div>
+
+        <!-- Form -->
+        <div class="px-8 pb-6 space-y-3">
+          <input id="user" class="w-full rounded-xl border border-slate-300 p-3 bg-white placeholder-slate-400 focus:border-[color:var(--carmim)] focus:ring-2 focus:ring-[color:var(--carmim)]/20 dark:border-zinc-600 dark:bg-zinc-900" placeholder="Usuário"/>
+          <div class="relative">
+            <input id="pass" type="password" class="w-full rounded-xl border border-slate-300 p-3 pr-10 bg-white placeholder-slate-400 focus:border-[color:var(--carmim)] focus:ring-2 focus:ring-[color:var(--carmim)]/20 dark:border-zinc-600 dark:bg-zinc-900" placeholder="Senha"/>
+            <button type="button" id="togglePass" class="absolute inset-y-0 right-0 pr-3 text-slate-500 hover:text-slate-700 dark:text-zinc-400 dark:hover:text-zinc-200">👁️</button>
+          </div>
+          <button onclick="login()" class="w-full rounded-xl bg-[color:var(--carmim)] hover:bg-[color:var(--carmim-dark)] text-white font-semibold py-3 shadow-sm transition">Entrar</button>
+        </div>
+
+        <!-- Rodapé login -->
+        <div class="flex items-center justify-center gap-2 border-t border-zinc-200 bg-zinc-50 px-6 py-3 text-sm text-zinc-600 dark:border-zinc-700 dark:bg-zinc-800/60 dark:text-zinc-300">
+          <span class="font-medium">ATS</span>
+          <span class="select-none">—</span>
+          <a href="mailto:alissonthss@outlook.com" class="underline underline-offset-2 hover:opacity-80">alissonthss@outlook.com</a>
+        </div>
       </div>
-      <div class="space-y-3">
-        <input id="user" class="w-full rounded-lg border p-3" placeholder="Usuário"/>
-        <input id="pass" type="password" class="w-full rounded-lg border p-3" placeholder="Senha"/>
-        <button onclick="login()" class="w-full rounded-lg bg-blue-600 hover:bg-blue-700 text-white font-semibold py-3">Entrar</button>
-      </div>
-      <!-- (Observação: texto de credenciais removido conforme solicitado) -->
     </div>
   </section>
 
-  <!-- DASHBOARD -->
+  <!-- ====== DASHBOARD (APENAS VISUAL DO HEADER + RODAPÉ atualizados) ====== -->
   <section id="dashboard" class="hidden">
-    <header class="bg-gradient-to-r from-blue-600 to-indigo-600 text-white">
-      <div class="max-w-7xl mx-auto px-6 py-5 flex items-center justify-between">
-        <div>
-          <h2 class="text-2xl font-bold tracking-tight">📊 Painel OTIF</h2>
-          <p class="text-sm text-blue-100">#MegaOtif - Atualizações em tempo real</p>
-        </div>
-        <div class="flex items-center gap-3">
-          <span id="userName" class="text-sm bg-white/15 px-3 py-1 rounded-full"></span>
-          <button onclick="logout()" class="text-sm font-semibold bg-white/10 hover:bg-white/20 px-3 py-1 rounded-lg">Sair</button>
+    <!-- Header atualizado (gradiente carmim + logo + toggle tema) -->
+    <header class="relative isolate">
+      <div class="bg-gradient-to-r from-[color:var(--carmim-dark)] to-[color:var(--carmim)] text-white">
+        <div class="max-w-7xl mx-auto px-6 py-5 flex items-center justify-between">
+          <div class="flex items-center gap-3">
+            <img src="ats-logo.png" alt="ATS" class="h-8 w-8 object-contain">
+            <div>
+              <h2 class="text-2xl font-bold tracking-tight">Painel OTIF</h2>
+              <p class="text-sm text-white/85">#MegaOtif - Atualizações em tempo real</p>
+            </div>
+          </div>
+          <div class="flex items-center gap-2">
+            <!-- Toggle Tema Header -->
+            <button id="themeToggleHeader" class="inline-flex items-center gap-2 rounded-full bg-white/15 px-3 py-1.5 text-sm hover:bg-white/25 transition" title="Alternar tema">
+              <span id="themeIconHeader">🌙</span><span class="hidden sm:inline">Tema</span>
+            </button>
+            <span id="userName" class="text-sm bg-white/15 px-3 py-1 rounded-full"></span>
+            <button onclick="logout()" class="text-sm font-semibold bg-white px-3 py-1 rounded-lg text-[color:var(--carmim-dark)] shadow hover:bg-zinc-50 transition">Sair</button>
+          </div>
         </div>
       </div>
       <div id="metaBanner" class="hidden text-center py-2 font-semibold"></div>
+      <!-- linha separadora -->
+      <div class="h-px w-full bg-black/10 dark:bg-white/10"></div>
     </header>
 
     <main class="max-w-7xl mx-auto px-6 py-6 space-y-6">
+      <!-- ====== ABAIXO MANTÉM-SE O CONTEÚDO ORIGINAL (filtros, painéis, gráficos, tabelas) ====== -->
+
       <!-- Filtros -->
-      <div class="bg-white rounded-2xl shadow p-4">
+      <div class="bg-white rounded-2xl shadow p-4 dark:bg-zinc-800 dark:border dark:border-zinc-700">
         <div class="flex flex-wrap items-center gap-3">
           <span class="font-semibold">Período:</span>
-          <input id="startDate" type="date" class="border rounded-lg p-2">
-          <input id="endDate" type="date" class="border rounded-lg p-2">
-          <button onclick="filtrarDados()" class="rounded-lg bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 font-semibold">Aplicar</button>
+          <input id="startDate" type="date" class="border rounded-lg p-2 dark:bg-zinc-900 dark:border-zinc-700">
+          <input id="endDate" type="date" class="border rounded-lg p-2 dark:bg-zinc-900 dark:border-zinc-700">
+          <button onclick="filtrarDados()" class="rounded-lg bg-[color:var(--carmim)] hover:bg-[color:var(--carmim-dark)] text-white px-4 py-2 font-semibold">Aplicar</button>
           <div class="ml-auto flex gap-2">
             <button onclick="presetDia()"    class="chip">Hoje</button>
             <button onclick="presetSemana()" class="chip">Semana</button>
@@ -81,10 +134,10 @@
       </div>
 
       <!-- Config Visibilidade (Master) -->
-      <div id="visPanel" class="hidden bg-white rounded-2xl shadow p-4">
+      <div id="visPanel" class="hidden bg-white rounded-2xl shadow p-4 dark:bg-zinc-800 dark:border dark:border-zinc-700">
         <div class="flex items-center justify-between mb-2">
           <h3 class="font-semibold">Configurações de Visibilidade (para perfil Visual)</h3>
-          <button id="visSaveBtn" class="px-3 py-1 rounded bg-blue-600 text-white text-sm font-semibold">Salvar</button>
+          <button id="visSaveBtn" class="px-3 py-1 rounded bg-[color:var(--carmim)] text-white text-sm font-semibold">Salvar</button>
         </div>
         <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 text-sm">
           <label class="flex items-center gap-2"><input id="visPie"    type="checkbox" class="scale-110"> Motivos (Pizza)</label>
@@ -92,102 +145,101 @@
           <label class="flex items-center gap-2"><input id="visLinha"  type="checkbox" class="scale-110"> Evolução (Linha)</label>
           <label class="flex items-center gap-2"><input id="visTabela" type="checkbox" class="scale-110"> Tabela de Atrasos</label>
         </div>
-        <p class="text-xs text-slate-500 mt-2">Essas opções não afetam o Master. O Visual verá apenas o que estiver habilitado.</p>
+        <p class="text-xs text-slate-500 dark:text-zinc-300 mt-2">Essas opções não afetam o Master. O Visual verá apenas o que estiver habilitado.</p>
       </div>
 
       <!-- Cards -->
       <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-6 gap-4">
-        <div class="card bg-white rounded-2xl shadow p-4">
+        <div class="card bg-white rounded-2xl shadow p-4 dark:bg-zinc-800 dark:border dark:border-zinc-700">
           <div class="flex justify-between">
-            <span class="text-slate-500">Total de Pedidos</span><span class="text-slate-400">Σ</span>
+            <span class="text-slate-500 dark:text-zinc-300">Total de Pedidos</span><span class="text-slate-400 dark:text-zinc-400">Σ</span>
           </div>
           <div class="mt-2 text-2xl font-bold" id="totalPedidos">0</div>
         </div>
 
-        <div id="cardPrazo" class="card bg-emerald-50 rounded-2xl shadow p-4 cursor-pointer" title="Duplo clique (desktop) ou toque longo (mobile)">
+        <div id="cardPrazo" class="card bg-emerald-50 rounded-2xl shadow p-4 cursor-pointer dark:bg-emerald-900/25" title="Duplo clique (desktop) ou toque longo (mobile)">
           <div class="flex justify-between">
-            <span class="text-emerald-700">No Prazo</span><span>✅</span>
+            <span class="text-emerald-700 dark:text-emerald-300">No Prazo</span><span>✅</span>
           </div>
-          <div class="mt-2 text-2xl font-bold text-emerald-800" id="entreguesPrazo">0</div>
-          <p class="text-xs text-emerald-700/70 mt-1">Abrir planilha</p>
+          <div class="mt-2 text-2xl font-bold text-emerald-800 dark:text-emerald-200" id="entreguesPrazo">0</div>
+          <p class="text-xs text-emerald-700/70 dark:text-emerald-300/70 mt-1">Abrir planilha</p>
         </div>
 
-        <div id="cardFora" class="card bg-rose-50 rounded-2xl shadow p-4 cursor-pointer" title="Duplo clique (desktop) ou toque longo (mobile)">
+        <div id="cardFora" class="card bg-rose-50 rounded-2xl shadow p-4 cursor-pointer dark:bg-rose-900/25" title="Duplo clique (desktop) ou toque longo (mobile)">
           <div class="flex justify-between">
-            <span class="text-rose-700">Fora do Prazo</span><span>⛔</span>
+            <span class="text-rose-700 dark:text-rose-300">Fora do Prazo</span><span>⛔</span>
           </div>
-          <div class="mt-2 text-2xl font-bold text-rose-800" id="foraPrazo">0</div>
-          <p class="text-xs text-rose-700/70 mt-1">Abrir planilha</p>
+          <div class="mt-2 text-2xl font-bold text-rose-800 dark:text-rose-200" id="foraPrazo">0</div>
+          <p class="text-xs text-rose-700/70 dark:text-rose-300/70 mt-1">Abrir planilha</p>
         </div>
 
-        <div class="card bg-amber-50 rounded-2xl shadow p-4">
+        <div class="card bg-amber-50 rounded-2xl shadow p-4 dark:bg-amber-900/25">
           <div class="flex justify-between">
-            <span class="text-amber-700">N/C</span><span>❔</span>
+            <span class="text-amber-700 dark:text-amber-300">N/C</span><span>❔</span>
           </div>
-          <div class="mt-2 text-2xl font-bold text-amber-800" id="naoClassificados">0</div>
+          <div class="mt-2 text-2xl font-bold text-amber-800 dark:text-amber-200" id="naoClassificados">0</div>
         </div>
 
-        <div class="card bg-blue-50 rounded-2xl shadow p-4">
-          <div class="flex justify-between">
-            <span class="text-blue-700">OTIF (%)</span><span>📈</span>
-          </div>
-          <div class="mt-2 text-2xl font-bold text-blue-800" id="otifPercent">0%</div>
-        </div>
-
-        <div class="card bg-slate-100 rounded-2xl shadow p-4">
+        <div class="card bg-white rounded-2xl shadow p-4 dark:bg-zinc-800 dark:border dark:border-zinc-700">
           <div class="flex justify-between items-center">
-            <span class="text-slate-700">Meta (%)</span>
-            <button id="btnEditMeta" class="hidden text-xs bg-white px-2 py-1 rounded border">✏️ Editar</button>
+            <span class="text-slate-700 dark:text-zinc-200">Meta (%)</span>
+            <button id="btnEditMeta" class="hidden text-xs bg-white px-2 py-1 rounded border dark:bg-zinc-700 dark:border-zinc-600">✏️ Editar</button>
           </div>
           <div class="mt-2 text-2xl font-bold flex items-center gap-3">
             <span id="metaPercent">80%</span>
-            <input id="metaInput" type="number" min="0" max="100" step="0.01" class="hidden border rounded px-2 py-1 w-24"/>
+            <input id="metaInput" type="number" min="0" max="100" step="0.01" class="hidden border rounded px-2 py-1 w-24 dark:bg-zinc-900 dark:border-zinc-700"/>
             <button id="btnSaveMeta" class="hidden text-xs bg-emerald-600 text-white px-2 py-1 rounded">Salvar</button>
             <button id="btnCancelMeta" class="hidden text-xs bg-slate-300 text-slate-800 px-2 py-1 rounded">Cancelar</button>
           </div>
         </div>
+
+        <div class="card bg-blue-50 rounded-2xl shadow p-4 dark:bg-blue-900/25">
+          <div class="flex justify-between">
+            <span class="text-blue-700 dark:text-blue-300">OTIF (%)</span><span>📈</span>
+          </div>
+          <div class="mt-2 text-2xl font-bold text-blue-800 dark:text-blue-200" id="otifPercent">0%</div>
+        </div>
       </div>
 
       <!-- Ações do Master (opcional manter CSV global) -->
-      <div id="blocoMaster" class="hidden bg-white rounded-2xl shadow p-4 flex flex-wrap items-center gap-3">
+      <div id="blocoMaster" class="hidden bg-white rounded-2xl shadow p-4 flex flex-wrap items-center gap-3 dark:bg-zinc-800 dark:border dark:border-zinc-700">
         <span class="font-semibold">Admin:</span>
         <input id="csvInput" type="file" accept=".csv" class="hidden"/>
         <button onclick="document.getElementById('csvInput').click()" class="btn bg-emerald-600 hover:bg-emerald-700 text-white">
           Importar CSV (Fora Prazo)
         </button>
-        <button onclick="baixarTemplate()" class="btn bg-slate-200 hover:bg-slate-300 text-slate-800">
+        <button onclick="baixarTemplate()" class="btn bg-slate-200 hover:bg-slate-300 text-slate-800 dark:bg-zinc-700 dark:text-zinc-100">
           Baixar Template CSV
         </button>
-        <span class="text-xs text-slate-500">CSV separado por vírgula/; • Datas DD/MM/AAAA ou AAAA-MM-DD</span>
+        <span class="text-xs text-slate-500 dark:text-zinc-300">CSV separado por vírgula/; • Datas DD/MM/AAAA ou AAAA-MM-DD</span>
       </div>
 
       <!-- Gráficos -->
       <div id="graficoGrid" class="grid gap-6 transition-all duration-300">
-        <div id="sectionPie" class="bg-white rounded-2xl shadow p-4">
+        <div id="sectionPie" class="bg-white rounded-2xl shadow p-4 dark:bg-zinc-800 dark:border dark:border-zinc-700">
           <h3 class="font-semibold mb-2">Motivos de Atraso</h3>
           <canvas id="graficoPizza"></canvas>
         </div>
-        <div id="sectionPareto" class="bg-white rounded-2xl shadow p-4">
+        <div id="sectionPareto" class="bg-white rounded-2xl shadow p-4 dark:bg-zinc-800 dark:border dark:border-zinc-700">
           <h3 class="font-semibold mb-2">Pareto – Setores</h3>
-          <!-- altura maior para o Pareto -->
           <div class="h-80 md:h-[420px]">
             <canvas id="graficoPareto"></canvas>
           </div>
         </div>
-        <div id="sectionLinha" class="bg-white rounded-2xl shadow p-4">
+        <div id="sectionLinha" class="bg-white rounded-2xl shadow p-4 dark:bg-zinc-800 dark:border dark:border-zinc-700">
           <h3 class="font-semibold mb-2">Evolução (atrasos por dia)</h3>
           <canvas id="graficoLinha"></canvas>
         </div>
       </div>
 
       <!-- Tabela de atrasos -->
-      <div id="sectionTabela" class="bg-white rounded-2xl shadow p-4">
+      <div id="sectionTabela" class="bg-white rounded-2xl shadow p-4 dark:bg-zinc-800 dark:border dark:border-zinc-700">
         <div class="flex items-center justify-between mb-2">
           <h3 class="font-semibold">Pedidos em Atraso</h3>
         </div>
         <div class="overflow-x-auto">
           <table class="w-full text-sm">
-            <thead class="bg-slate-100 text-left">
+            <thead class="bg-slate-100 text-left dark:bg-zinc-700">
               <tr>
                 <th class="p-2">Cliente</th>
                 <th class="p-2">Pedido</th>
@@ -197,17 +249,28 @@
                 <th class="p-2">DataEntrega</th>
               </tr>
             </thead>
-            <tbody id="tabelaDados" class="divide-y"></tbody>
+            <tbody id="tabelaDados" class="divide-y dark:divide-zinc-700/60"></tbody>
           </table>
         </div>
       </div>
     </main>
+
+    <!-- Rodapé do dashboard -->
+    <footer class="mt-10 mb-6">
+      <div class="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+        <div class="rounded-2xl border border-zinc-200 bg-white px-4 py-3 text-sm text-zinc-600 shadow-sm dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-300 flex items-center justify-center gap-2">
+          <span class="font-medium">ATS</span>
+          <span class="select-none">—</span>
+          <a href="mailto:alissonthss@outlook.com" class="underline underline-offset-2 hover:opacity-80">alissonthss@outlook.com</a>
+        </div>
+      </div>
+    </footer>
   </section>
 
-  <!-- MODAL: planilha (No Prazo / Fora Prazo) -->
+  <!-- ====== MODAL: planilha (No Prazo / Fora Prazo) ====== -->
   <div id="modalList" class="hidden fixed inset-0 modal-bg z-40">
     <div class="min-h-full grid place-items-center px-4">
-      <div class="bg-white w-full max-w-6xl rounded-2xl shadow-2xl p-6">
+      <div class="bg-white w-full max-w-6xl rounded-2xl shadow-2xl p-6 dark:bg-zinc-800 dark:text-zinc-100">
         <div class="flex items-center justify-between mb-4">
           <h2 id="modalListTitle" class="text-xl font-semibold">Listagem</h2>
           <div class="flex flex-wrap items-center gap-2">
@@ -217,22 +280,22 @@
             <button id="btnDeleteAll" class="hidden icon-btn bg-rose-700 text-white">Excluir TUDO</button>
             <button id="btnAddRow" class="hidden icon-btn bg-emerald-600 text-white">+ Linha</button>
             <button id="btnSaveSheet" class="hidden icon-btn bg-blue-600 text-white">Salvar</button>
-            <button onclick="fecharModalList()" class="icon-btn bg-slate-200 text-slate-800">Fechar</button>
+            <button onclick="fecharModalList()" class="icon-btn bg-slate-200 text-slate-800 dark:bg-zinc-700 dark:text-zinc-100">Fechar</button>
           </div>
         </div>
         <div class="overflow-x-auto max-h-[65vh]">
           <table class="w-full text-sm tbl">
-            <thead id="modalHead" class="bg-slate-100 text-left th-sticky"></thead>
-            <tbody id="modalBody" class="bg-white"></tbody>
+            <thead id="modalHead" class="bg-slate-100 text-left th-sticky dark:bg-zinc-700"></thead>
+            <tbody id="modalBody" class="bg-white dark:bg-zinc-800"></tbody>
           </table>
         </div>
-        <p id="modalHint" class="text-xs text-slate-500 mt-3"></p>
+        <p id="modalHint" class="text-xs text-slate-500 dark:text-zinc-300 mt-3"></p>
       </div>
     </div>
   </div>
 
 <script>
-/* =============== Firebase Init =============== */
+/* =============== Firebase Init (INALTERADO) =============== */
 const firebaseConfig = {
   apiKey: "AIzaSyBbo6DNAzPFqUgfu_zDjw7f_711L3UfHfY",
   authDomain: "painel-otif.firebaseapp.com",
@@ -248,7 +311,7 @@ const db = firebase.database();
 const auth = firebase.auth();
 auth.setPersistence(firebase.auth.Auth.Persistence.LOCAL);
 
-/* =============== GLOBAL STATE/REFS =============== */
+/* =============== GLOBAL STATE/REFS (INALTERADO) =============== */
 const REF_FORA   = db.ref("otif/foraPrazo");
 const REF_PRAZO  = db.ref("otif/noPrazo");
 const REF_META   = db.ref("otif/meta/globalPercent");
@@ -262,7 +325,7 @@ let chartPizza=null, chartPareto=null, chartLinha=null;
 let usuarioAtual = { nome:'visual', role:'visual' }; // default
 let modalTipo="fora";
 
-/* =============== AUTH STATE =============== */
+/* =============== AUTH STATE (INALTERADO) =============== */
 auth.onAuthStateChanged(async (user) => {
   if (user) {
     try{
@@ -295,7 +358,7 @@ auth.onAuthStateChanged(async (user) => {
   if (typeof renderizarTudo === 'function') renderizarTudo();
 });
 
-/* =============== LOGIN/LOGOUT =============== */
+/* =============== LOGIN/LOGOUT (INALTERADO) =============== */
 async function login(){
   const u = qs("#user").value.trim();
   const p = qs("#pass").value.trim();
@@ -331,7 +394,7 @@ async function logout(){
   id('login-screen').classList.remove('hidden');
 }
 
-/* =============== SUBSCRIBE DB =============== */
+/* =============== SUBSCRIBE DB (INALTERADO) =============== */
 REF_FORA.on("value", s=>{ atrasos = s.val() || []; renderizarTudo(); });
 REF_PRAZO.on("value", s=>{ noPrazo = s.val() || []; renderizarTudo(); });
 REF_META.on("value", s=>{ const v=parseFloat(s.val()); if(!isNaN(v)) metaValue=v; renderizarTudo(); });
@@ -344,7 +407,7 @@ REF_VIS.on("value", s=>{
   applyVisibilityForViewer(); ajustarGridGraficos();
 });
 
-/* =============== FILTERS/RENDER =============== */
+/* =============== FILTERS/RENDER (INALTERADO) =============== */
 function filtrarDados(){ renderizarTudo(); }
 function presetDia(){ const d=isoToday(); setDates(d,d); renderizarTudo(); }
 function presetSemana(){
@@ -380,7 +443,7 @@ function renderizarTudo(){
   const tbody=id("tabelaDados"); tbody.innerHTML="";
   atrasosF.forEach(a=>{
     tbody.insertAdjacentHTML("beforeend", `
-      <tr class="hover:bg-slate-50">
+      <tr class="hover:bg-slate-50 dark:hover:bg-zinc-800/60">
         <td class="p-2">${a.cliente||""}</td>
         <td class="p-2">${a.pedido||""}</td>
         <td class="p-2">${a.produto||""}</td>
@@ -396,7 +459,7 @@ function renderizarTudo(){
   ajustarGridGraficos();
 }
 
-/* =============== BANNER META (👍/👎) =============== */
+/* =============== BANNER META (INALTERADO) =============== */
 function atualizarStatusMeta(otif, meta){
   const banner = id("metaBanner");
   const bateu = otif >= meta;
@@ -406,7 +469,7 @@ function atualizarStatusMeta(otif, meta){
   banner.className = "text-center py-2 font-semibold " + (bateu ? "bg-emerald-50 text-emerald-700" : "bg-rose-50 text-rose-700");
 }
 
-/* =============== EDIÇÃO DE META (MASTER) =============== */
+/* =============== EDIÇÃO DE META (INALTERADO) =============== */
 function bindMetaButtons(){
   const edit = id("btnEditMeta"), save=id("btnSaveMeta"), cancel=id("btnCancelMeta");
   if(!edit || !save || !cancel) return;
@@ -438,7 +501,7 @@ function bindMetaButtons(){
   };
 }
 
-/* =============== CHARTS =============== */
+/* =============== CHARTS (INALTERADO) =============== */
 function renderGraficos(data){
   if(chartPizza) chartPizza.destroy();
   if(chartPareto) chartPareto.destroy();
@@ -521,10 +584,8 @@ function renderGraficos(data){
     },
     options: {
       responsive: true,
-      maintainAspectRatio: false, // usa a altura do container
-      plugins: {
-        legend: { position: "bottom" }
-      },
+      maintainAspectRatio: false,
+      plugins: { legend: { position: "bottom" } },
       scales: {
         x: { grid: { display: false } },
         y: {
@@ -556,7 +617,7 @@ function renderGraficos(data){
 }
 function countBy(arr, fn){ const m={}; arr.forEach(x=>{const k=fn(x); m[k]=(m[k]||0)+1;}); return m; }
 
-/* =============== GRID AJUSTE =============== */
+/* =============== GRID AJUSTE (INALTERADO) =============== */
 function ajustarGridGraficos(){
   const grid = id("graficoGrid");
   const visiveis = ["#sectionPie","#sectionPareto","#sectionLinha"]
@@ -571,7 +632,7 @@ function ajustarGridGraficos(){
   visiveis.forEach(v => v.classList.add("h-full"));
 }
 
-/* =============== CARDS: dblclick + toque longo (MOBILE) =============== */
+/* =============== CARDS: dblclick + toque longo (INALTERADO) =============== */
 function bindCardOpeners(){
   const cPrazo = id("cardPrazo");
   const cFora  = id("cardFora");
@@ -585,7 +646,7 @@ function bindCardOpeners(){
   }
 }
 
-/* =============== MODAL PLANILHA =============== */
+/* =============== MODAL PLANILHA (INALTERADO) =============== */
 function abrirPlanilha(tipo){
   modalTipo=tipo;
   const isMaster = usuarioAtual?.role==="master";
@@ -666,7 +727,7 @@ function linhaModalHTML(r, idxView, tipo, editable){
 }
 function fecharModalList(){ id("modalList").classList.add("hidden"); }
 
-/* Ações do modal */
+/* Ações do modal (INALTERADO) */
 async function addLinha(){
   if(usuarioAtual?.role!=="master") return;
   const novo = (modalTipo==="fora")
@@ -738,7 +799,7 @@ function toggleSelectAll(master){
   document.querySelectorAll(".rowchk").forEach(c=> c.checked = master.checked);
 }
 
-/* =============== COLAR VÁRIAS LINHAS EM UMA COLUNA =============== */
+/* =============== COLAR VÁRIAS LINHAS EM UMA COLUNA (INALTERADO) =============== */
 function handlePasteColumn(e){
   if(usuarioAtual?.role!=="master") return;
 
@@ -801,7 +862,7 @@ function handlePasteColumn(e){
   }
 }
 
-/* =============== IMPORTAR NO MODAL (XLSX/CSV) =============== */
+/* =============== IMPORTAR NO MODAL (XLSX/CSV) (INALTERADO) =============== */
 async function importarExcelModal(ev){
   if(usuarioAtual?.role!=="master") return;
   const file = ev.target.files?.[0]; if(!file) return;
@@ -877,7 +938,7 @@ async function importarExcelModal(ev){
   }
 }
 
-/* =============== VISIBILIDADE (viewer) =============== */
+/* =============== VISIBILIDADE (viewer) (INALTERADO) =============== */
 function applyVisibilityForViewer(){
   if(usuarioAtual?.role!=="visual"){
     show("#sectionPie", true); show("#sectionPareto", true); show("#sectionLinha", true); show("#sectionTabela", true);
@@ -901,7 +962,7 @@ id("visSaveBtn").addEventListener("click", async ()=>{
   ajustarGridGraficos();
 });
 
-/* =============== CSV (fora prazo) legado =============== */
+/* =============== CSV (fora prazo) legado (INALTERADO) =============== */
 id("csvInput").addEventListener("change", async ev=>{
   if(usuarioAtual?.role!=="master"){ ev.target.value=""; return; }
   const file=ev.target.files?.[0]; if(!file) return;
@@ -951,7 +1012,7 @@ function baixarTemplate(){
   const a=document.createElement("a"); a.href=url; a.download="otif_foraprazo_template.csv"; a.click(); URL.revokeObjectURL(url);
 }
 
-/* =============== HELPERS =============== */
+/* =============== HELPERS (INALTERADO) =============== */
 function qs(s){return document.querySelector(s)}
 function id(s){return document.getElementById(s)}
 function txt(el,val){ id(el).textContent=val }
@@ -995,6 +1056,46 @@ function enableLongPress(el, cb, ms=600){
   el.addEventListener('touchmove',  ()=>{ moved=true; if(t){ clearTimeout(t); } }, {passive:true});
   el.addEventListener('touchend',   ()=>{ if(t){ clearTimeout(t); } }, {passive:true});
 }
+
+/* ====== Toggle de senha + Tema (login/header) ====== */
+document.addEventListener('DOMContentLoaded', () => {
+  const passBtn = document.getElementById('togglePass');
+  if (passBtn) passBtn.addEventListener('click', () => {
+    const i = document.getElementById('pass');
+    i.type = i.type === 'password' ? 'text' : 'password';
+  });
+
+  const setTheme = (mode, who) => {
+    if (mode === 'dark') {
+      document.documentElement.classList.add('dark');
+      localStorage.setItem('theme', 'dark');
+      if (who==='login') document.getElementById('themeIconLogin').textContent='☀️';
+      if (who==='header') document.getElementById('themeIconHeader').textContent='☀️';
+    } else {
+      document.documentElement.classList.remove('dark');
+      localStorage.setItem('theme', 'light');
+      if (who==='login') document.getElementById('themeIconLogin').textContent='🌙';
+      if (who==='header') document.getElementById('themeIconHeader').textContent='🌙';
+    }
+  };
+
+  const btnLogin = document.getElementById('themeToggleLogin');
+  if (btnLogin) btnLogin.addEventListener('click', () => {
+    const dark = document.documentElement.classList.contains('dark');
+    setTheme(dark ? 'light' : 'dark', 'login');
+  });
+  const btnHeader = document.getElementById('themeToggleHeader');
+  if (btnHeader) btnHeader.addEventListener('click', () => {
+    const dark = document.documentElement.classList.contains('dark');
+    setTheme(dark ? 'light' : 'dark', 'header');
+  });
+
+  // Seta ícones iniciais conforme estado
+  if (document.documentElement.classList.contains('dark')) {
+    const iL = document.getElementById('themeIconLogin'); if (iL) iL.textContent='☀️';
+    const iH = document.getElementById('themeIconHeader'); if (iH) iH.textContent='☀️';
+  }
+});
 </script>
 </body>
 </html>
